@@ -5,6 +5,7 @@ import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChatInterface } from '@/components/ChatInterface';
 import { TransformResult } from '@/components/TransformResult';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
 
 function ChatContent() {
   const searchParams = useSearchParams();
@@ -42,9 +43,10 @@ function ChatContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b shrink-0">
+        <div className="px-4 py-3 flex items-center justify-between">
           <Link href="/" className="text-lg font-semibold text-gray-900">
             ← Voice Builder
           </Link>
@@ -57,13 +59,22 @@ function ChatContent() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 h-[calc(100vh-73px)]">
-        <ChatInterface
-          initialText={initialText}
-          initialImage={initialImage}
-          onTransform={handleTransform}
-        />
-      </main>
+      {/* Main content with sidebar */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <ConversationSidebar />
+
+        {/* Chat area */}
+        <main className="flex-1 p-4 overflow-hidden">
+          <div className="max-w-3xl mx-auto h-full">
+            <ChatInterface
+              initialText={initialText}
+              initialImage={initialImage}
+              onTransform={handleTransform}
+            />
+          </div>
+        </main>
+      </div>
 
       {transformContent && (
         <TransformResult
