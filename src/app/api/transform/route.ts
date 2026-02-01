@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     // Streaming mode
     if (stream) {
       const encoder = new TextEncoder();
+      let isClosed = false;
 
       const readableStream = new ReadableStream({
         async start(controller) {
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
             });
 
             for await (const event of streamResponse) {
+              if (isClosed) break;
               if (
                 event.type === 'content_block_delta' &&
                 event.delta.type === 'text_delta'
@@ -78,12 +80,21 @@ export async function POST(request: Request) {
                 controller.enqueue(encoder.encode(`data: ${data}\n\n`));
               }
             }
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
+            if (!isClosed) {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+              isClosed = true;
+            }
           } catch (error) {
-            console.error('Stream error:', error);
-            controller.error(error);
+            if (!isClosed) {
+              console.error('Stream error:', error);
+              controller.error(error);
+              isClosed = true;
+            }
           }
+        },
+        cancel() {
+          isClosed = true;
         },
       });
 
