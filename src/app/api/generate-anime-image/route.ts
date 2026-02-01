@@ -27,7 +27,7 @@ const ANIME_STYLE_SUFFIX = `, anime illustration style, soft colors, clean lines
 
 export async function POST(request: Request) {
   try {
-    const { content } = await request.json();
+    const { content, customPrompt } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       return new Response(
@@ -36,22 +36,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Step 1: Extract highlight using Claude
-    console.log('[Anime Image] Extracting highlight...');
-    const highlightResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      system: EXTRACT_HIGHLIGHT_PROMPT,
-      messages: [{ role: 'user', content }],
-    });
+    let imagePrompt: string;
+    let highlightText: string = '';
 
-    const highlightText =
-      highlightResponse.content[0].type === 'text'
-        ? highlightResponse.content[0].text
-        : '';
+    if (customPrompt) {
+      // Use custom prompt directly with style suffix
+      console.log('[Anime Image] Using custom prompt...');
+      highlightText = customPrompt;
+      imagePrompt = `${customPrompt}${ANIME_STYLE_SUFFIX}`;
+    } else {
+      // Step 1: Extract highlight using Claude
+      console.log('[Anime Image] Extracting highlight...');
+      const highlightResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 256,
+        system: EXTRACT_HIGHLIGHT_PROMPT,
+        messages: [{ role: 'user', content }],
+      });
 
-    // Step 2: Build final prompt for image generation
-    const imagePrompt = `${highlightText.trim()}${ANIME_STYLE_SUFFIX}`;
+      highlightText =
+        highlightResponse.content[0].type === 'text'
+          ? highlightResponse.content[0].text
+          : '';
+
+      // Step 2: Build final prompt for image generation
+      imagePrompt = `${highlightText.trim()}${ANIME_STYLE_SUFFIX}`;
+    }
     console.log('[Anime Image] Prompt:', imagePrompt.substring(0, 100) + '...');
 
     // Step 3: Generate image using DALL-E 3

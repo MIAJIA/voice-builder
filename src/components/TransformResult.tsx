@@ -65,6 +65,11 @@ export function TransformResult({
   const [animePrompt, setAnimePrompt] = useState<string | null>(null);
   const [isGeneratingAnime, setIsGeneratingAnime] = useState(false);
   const [animeError, setAnimeError] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+
+  // Track if we've auto-extracted points for IMAGE tab
+  const [hasAutoExtracted, setHasAutoExtracted] = useState(false);
 
   const noteCardRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -288,19 +293,49 @@ export function TransformResult({
     }
   };
 
-  const handleGenerateAnimeImage = async () => {
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+
+  const handleShare = async (text: string, platform: Platform) => {
+    // Copy text to clipboard first
+    await navigator.clipboard.writeText(text);
+
+    if (platform === 'twitter') {
+      // Twitter has a share URL
+      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+      window.open(tweetUrl, '_blank', 'width=550,height=420');
+    } else if (platform === 'linkedin') {
+      // LinkedIn - copy and open compose
+      const linkedinUrl = `https://www.linkedin.com/feed/?shareActive=true`;
+      window.open(linkedinUrl, '_blank');
+      setShareMessage('已复制！请在 LinkedIn 中粘贴发布');
+      setTimeout(() => setShareMessage(null), 3000);
+    } else if (platform === 'wechat') {
+      // WeChat - copy only
+      setShareMessage('已复制！请打开微信朋友圈粘贴发布');
+      setTimeout(() => setShareMessage(null), 3000);
+    } else if (platform === 'xiaohongshu') {
+      // Xiaohongshu - copy only
+      setShareMessage('已复制！请打开小红书 App 粘贴发布');
+      setTimeout(() => setShareMessage(null), 3000);
+    }
+  };
+
+  const handleGenerateAnimeImage = async (customPromptOverride?: string) => {
     setIsGeneratingAnime(true);
     setAnimeError(null);
     try {
+      const promptToUse = customPromptOverride || (useCustomPrompt && customPrompt.trim() ? customPrompt.trim() : null);
       const response = await fetch('/api/generate-anime-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          customPrompt: promptToUse,
+        }),
       });
       const data = await response.json();
       if (data.error) {
         setAnimeError(data.details || data.error);
-        // Still show prompt if available
         if (data.prompt) setAnimePrompt(data.prompt);
       } else if (data.image) {
         setAnimePrompt(data.prompt);
@@ -316,6 +351,14 @@ export function TransformResult({
       setIsGeneratingAnime(false);
     }
   };
+
+  // Auto-extract points when IMAGE tab is first accessed
+  const handleImageTabClick = useCallback(() => {
+    if (!hasAutoExtracted && !noteData && !isImageLoading) {
+      setHasAutoExtracted(true);
+      handleExtractPoints();
+    }
+  }, [hasAutoExtracted, noteData, isImageLoading]);
 
   const handleDownloadAnimeImage = () => {
     if (animeImage) {
@@ -409,7 +452,7 @@ export function TransformResult({
               value="image"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#2a2a2a] data-[state=active]:bg-transparent px-6 py-3"
               style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-              onClick={() => !noteData && handleExtractPoints()}
+              onClick={handleImageTabClick}
             >
               IMAGE
             </TabsTrigger>
@@ -487,6 +530,15 @@ export function TransformResult({
                 </div>
               ) : currentResult.text ? (
                 <div className="space-y-4">
+                  {/* Share success message */}
+                  {shareMessage && (
+                    <div
+                      className="p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded flex items-center gap-2"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                    >
+                      <span>✓</span> {shareMessage}
+                    </div>
+                  )}
                   {/* Show streaming indicator if still streaming */}
                   {currentResult.isStreaming && (
                     <div
@@ -522,16 +574,30 @@ export function TransformResult({
                       >
                         {version}
                       </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCopyText(version)}
-                        className="border-[#2a2a2a] text-[#2a2a2a]"
-                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                        disabled={currentResult.isStreaming}
-                      >
-                        {copiedText ? 'COPIED ✓' : 'COPY'}
-                      </Button>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCopyText(version)}
+                          className="border-[#2a2a2a] text-[#2a2a2a]"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          disabled={currentResult.isStreaming}
+                        >
+                          {copiedText ? 'COPIED ✓' : 'COPY'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleShare(version, activePlatform)}
+                          className="bg-[#2a2a2a] text-[#f4f1ea]"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          disabled={currentResult.isStreaming}
+                        >
+                          {activePlatform === 'twitter' ? '发布到 Twitter →' :
+                           activePlatform === 'linkedin' ? '发布到 LinkedIn →' :
+                           activePlatform === 'wechat' ? '复制到朋友圈 →' :
+                           '复制到小红书 →'}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {!currentResult.isStreaming && (
@@ -561,253 +627,230 @@ export function TransformResult({
             </div>
           </TabsContent>
 
-          {/* Image Tab */}
+          {/* Image Tab - Two parallel sections */}
           <TabsContent value="image" className="flex-1 overflow-y-auto p-6 m-0">
-            {isImageLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin w-8 h-8 border-2 border-[#2a2a2a] border-t-transparent rounded-full mx-auto mb-4" />
-                <p className="text-gray-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                  extracting points...
-                </p>
-              </div>
-            ) : noteData ? (
-              <div className="space-y-6">
-                {/* Theme toggle */}
-                <div className="flex gap-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                  <button
-                    onClick={() => {
-                      setTheme('light');
-                      setGeneratedImage(null);
-                    }}
-                    className={`px-4 py-2 border ${
-                      theme === 'light'
-                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
-                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4]'
-                    }`}
-                  >
-                    LIGHT
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTheme('dark');
-                      setGeneratedImage(null);
-                    }}
-                    className={`px-4 py-2 border ${
-                      theme === 'dark'
-                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
-                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4]'
-                    }`}
-                  >
-                    DARK
-                  </button>
+            <div className="space-y-8">
+              {/* Section 1: Note Card */}
+              <div className="border-2 border-[#d4cfc4] p-4 bg-[#fffef9]" style={{ boxShadow: '4px 4px 0 #d4cfc4' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-medium text-[#2a2a2a]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      📝 笔记卡片
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      提取要点，生成知识分享卡片
+                    </p>
+                  </div>
+                  {noteData && (
+                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">✓ 已提取</span>
+                  )}
                 </div>
 
-                {/* Editable fields */}
-                <div className="space-y-4">
+                {isImageLoading ? (
+                  <div className="flex items-center gap-3 py-4">
+                    <div className="animate-spin w-5 h-5 border-2 border-[#2a2a2a] border-t-transparent rounded-full" />
+                    <span className="text-sm text-gray-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      提取要点中...
+                    </span>
+                  </div>
+                ) : noteData ? (
+                  <div className="space-y-4">
+                    {/* Theme toggle */}
+                    <div className="flex gap-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      <button
+                        onClick={() => { setTheme('light'); setGeneratedImage(null); }}
+                        className={`px-3 py-1 text-sm border ${theme === 'light' ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]' : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4]'}`}
+                      >
+                        LIGHT
+                      </button>
+                      <button
+                        onClick={() => { setTheme('dark'); setGeneratedImage(null); }}
+                        className={`px-3 py-1 text-sm border ${theme === 'dark' ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]' : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4]'}`}
+                      >
+                        DARK
+                      </button>
+                    </div>
+
+                    {/* Collapsible edit section */}
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        编辑内容 ▾
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        <input
+                          type="text"
+                          value={editableTitle}
+                          onChange={(e) => { setEditableTitle(e.target.value); setGeneratedImage(null); }}
+                          placeholder="标题"
+                          className="w-full p-2 text-sm border-2 border-[#d4cfc4] bg-white"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        />
+                        {editablePoints.map((point, index) => (
+                          <input
+                            key={index}
+                            type="text"
+                            value={point}
+                            onChange={(e) => updatePoint(index, e.target.value)}
+                            className="w-full p-2 text-sm border-2 border-[#d4cfc4] bg-white"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          />
+                        ))}
+                      </div>
+                    </details>
+
+                    {/* Preview */}
+                    <div className="flex justify-center py-2">
+                      <NoteCardTemplate ref={noteCardRef} data={currentNoteData} theme={theme} />
+                    </div>
+
+                    {/* Generated image */}
+                    {generatedImage && (
+                      <div className="border border-[#d4cfc4] p-3 bg-gray-50 rounded">
+                        <img src={generatedImage} alt="Generated note card" className="max-w-full mx-auto" />
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-2 flex-wrap" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      <Button onClick={handleGenerateImage} disabled={isGeneratingImage} size="sm" className="bg-[#2a2a2a] text-[#f4f1ea]">
+                        {isGeneratingImage ? 'GENERATING...' : 'GENERATE IMAGE'}
+                      </Button>
+                      {generatedImage && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={handleDownloadImage}>DOWNLOAD</Button>
+                          <Button variant="outline" size="sm" onClick={handleCopyImage}>{copiedImage ? 'COPIED ✓' : 'COPY'}</Button>
+                        </>
+                      )}
+                      <Button variant="outline" size="sm" onClick={handleExtractPoints}>REGENERATE</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={handleExtractPoints} size="sm" className="bg-[#2a2a2a] text-[#f4f1ea]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                    提取要点
+                  </Button>
+                )}
+              </div>
+
+              {/* Section 2: AI Illustration */}
+              <div className="border-2 border-[#d4cfc4] p-4 bg-[#fffef9]" style={{ boxShadow: '4px 4px 0 #d4cfc4' }}>
+                <div className="flex items-center justify-between mb-4">
                   <div>
-                    <label
-                      className="text-sm text-gray-500 mb-1 block"
-                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      title
+                    <h3 className="font-medium text-[#2a2a2a]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      🎨 AI 配图
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      DALL-E 3 生成动漫风格插画
+                    </p>
+                  </div>
+                </div>
+
+                {/* Prompt mode selector */}
+                <div className="mb-4">
+                  <div className="flex gap-4 mb-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="promptMode"
+                        checked={!useCustomPrompt}
+                        onChange={() => setUseCustomPrompt(false)}
+                        className="accent-[#2a2a2a]"
+                      />
+                      <span className="text-sm">自动提取</span>
                     </label>
-                    <input
-                      type="text"
-                      value={editableTitle}
-                      onChange={(e) => {
-                        setEditableTitle(e.target.value);
-                        setGeneratedImage(null);
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="promptMode"
+                        checked={useCustomPrompt}
+                        onChange={() => setUseCustomPrompt(true)}
+                        className="accent-[#2a2a2a]"
+                      />
+                      <span className="text-sm">自定义</span>
+                    </label>
+                  </div>
+
+                  <div className={useCustomPrompt ? 'block' : 'hidden'}>
+                    <textarea
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && customPrompt.trim()) {
+                          e.preventDefault();
+                          handleGenerateAnimeImage();
+                        }
                       }}
-                      className="w-full p-2 border-2 border-[#d4cfc4] bg-[#fffef9]"
+                      placeholder="描述你想要的画面，按 Enter 生成（Shift+Enter 换行）"
+                      className="w-full p-3 text-sm border-2 border-[#d4cfc4] bg-white resize-none"
                       style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      rows={3}
                     />
                   </div>
-                  <div>
-                    <label
-                      className="text-sm text-gray-500 mb-1 block"
-                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      points
-                    </label>
-                    {editablePoints.map((point, index) => (
-                      <input
-                        key={index}
-                        type="text"
-                        value={point}
-                        onChange={(e) => updatePoint(index, e.target.value)}
-                        className="w-full p-2 border-2 border-[#d4cfc4] bg-[#fffef9] mb-2"
-                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                      />
+
+                  <div className={!useCustomPrompt ? 'block' : 'hidden'}>
+                    <p className="text-xs text-gray-400" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      // 将从对话内容中自动提取核心意象
+                    </p>
+                  </div>
+                </div>
+
+                {animeError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded">
+                    {animeError}
+                  </div>
+                )}
+
+                {animeImage ? (
+                  <div className="space-y-4">
+                    {animePrompt && (
+                      <div className="p-3 bg-[#f4f1ea] border border-[#d4cfc4] text-xs rounded">
+                        <span className="text-gray-500">prompt: </span>
+                        <span className="text-gray-700">{animePrompt}</span>
+                      </div>
+                    )}
+                    <img src={animeImage} alt="Generated anime illustration" className="max-w-full rounded border-2 border-[#d4cfc4]" />
+                    <div className="flex gap-2 flex-wrap" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      <Button variant="outline" size="sm" onClick={handleDownloadAnimeImage}>DOWNLOAD</Button>
+                      <Button variant="outline" size="sm" onClick={handleCopyAnimeImage}>{copiedImage ? 'COPIED ✓' : 'COPY'}</Button>
+                      <Button variant="outline" size="sm" onClick={() => handleGenerateAnimeImage()} disabled={isGeneratingAnime}>REGENERATE</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => handleGenerateAnimeImage()}
+                    disabled={isGeneratingAnime || (useCustomPrompt && !customPrompt.trim())}
+                    className="bg-[#2a2a2a] text-[#f4f1ea]"
+                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                  >
+                    {isGeneratingAnime ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">◐</span> GENERATING (~20s)...
+                      </span>
+                    ) : (
+                      '生成配图'
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {/* Original images if any */}
+              {images.length > 0 && (
+                <div className="border-2 border-[#d4cfc4] p-4 bg-[#fffef9]" style={{ boxShadow: '4px 4px 0 #d4cfc4' }}>
+                  <h3 className="font-medium text-[#2a2a2a] mb-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                    📎 原始图片
+                  </h3>
+                  <div className="flex gap-4 flex-wrap">
+                    {images.map((img, index) => (
+                      <div key={index} className="relative">
+                        <img src={img} alt={`Original ${index + 1}`} className="max-w-[150px] max-h-[100px] border border-[#d4cfc4] rounded" />
+                        <Button size="sm" variant="outline" className="mt-2 w-full text-xs" onClick={() => handleDownloadOriginalImage(img, index)}>
+                          DOWNLOAD
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 </div>
-
-                {/* Preview */}
-                <div className="flex justify-center">
-                  <NoteCardTemplate ref={noteCardRef} data={currentNoteData} theme={theme} />
-                </div>
-
-                {/* Generated image preview */}
-                {generatedImage && (
-                  <div className="border-2 border-[#d4cfc4] p-4 bg-gray-100">
-                    <p
-                      className="text-sm text-gray-500 mb-2"
-                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      generated_image:
-                    </p>
-                    <img
-                      src={generatedImage}
-                      alt="Generated note card"
-                      className="max-w-full mx-auto"
-                    />
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div
-                  className="flex gap-3 flex-wrap"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                >
-                  <Button
-                    onClick={handleGenerateImage}
-                    disabled={isGeneratingImage}
-                    className="bg-[#2a2a2a] text-[#f4f1ea]"
-                  >
-                    {isGeneratingImage ? 'GENERATING...' : 'GENERATE IMAGE'}
-                  </Button>
-                  {generatedImage && (
-                    <>
-                      <Button variant="outline" onClick={handleDownloadImage}>
-                        DOWNLOAD
-                      </Button>
-                      <Button variant="outline" onClick={handleCopyImage}>
-                        {copiedImage ? 'COPIED ✓' : 'COPY TO CLIPBOARD'}
-                      </Button>
-                    </>
-                  )}
-                  <Button variant="outline" onClick={handleExtractPoints}>
-                    REGENERATE POINTS
-                  </Button>
-                </div>
-
-                {/* Original images */}
-                {images.length > 0 && (
-                  <div className="border-t border-[#d4cfc4] pt-6">
-                    <p
-                      className="text-sm text-gray-500 mb-3"
-                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      original_images:
-                    </p>
-                    <div className="flex gap-4 flex-wrap">
-                      {images.map((img, index) => (
-                        <div key={index} className="relative">
-                          <img
-                            src={img}
-                            alt={`Original ${index + 1}`}
-                            className="max-w-[200px] max-h-[150px] border-2 border-[#d4cfc4]"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-2 w-full"
-                            onClick={() => handleDownloadOriginalImage(img, index)}
-                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                          >
-                            DOWNLOAD
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Anime illustration */}
-                <div className="border-t border-[#d4cfc4] pt-6">
-                  <p
-                    className="text-sm text-gray-500 mb-3"
-                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                  >
-                    anime_illustration:
-                  </p>
-                  <p
-                    className="text-xs text-gray-400 mb-4"
-                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                  >
-                    // 根据对话内容生成动漫风格配图 (DALL-E 3)
-                  </p>
-
-                  {animeError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded">
-                      {animeError}
-                    </div>
-                  )}
-
-                  {animeImage ? (
-                    <div className="space-y-4">
-                      {animePrompt && (
-                        <div className="p-3 bg-[#f4f1ea] border border-[#d4cfc4] text-xs">
-                          <span className="text-gray-500">prompt: </span>
-                          <span className="text-gray-700">{animePrompt}</span>
-                        </div>
-                      )}
-                      <img
-                        src={animeImage}
-                        alt="Generated anime illustration"
-                        className="max-w-full rounded border-2 border-[#d4cfc4]"
-                      />
-                      <div className="flex gap-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                        <Button variant="outline" onClick={handleDownloadAnimeImage}>
-                          DOWNLOAD
-                        </Button>
-                        <Button variant="outline" onClick={handleCopyAnimeImage}>
-                          {copiedImage ? 'COPIED ✓' : 'COPY'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={handleGenerateAnimeImage}
-                          disabled={isGeneratingAnime}
-                        >
-                          REGENERATE
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button
-                      onClick={handleGenerateAnimeImage}
-                      disabled={isGeneratingAnime}
-                      className="bg-[#2a2a2a] text-[#f4f1ea]"
-                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      {isGeneratingAnime ? (
-                        <span className="flex items-center gap-2">
-                          <span className="animate-spin">◐</span> GENERATING...
-                        </span>
-                      ) : (
-                        'GENERATE ANIME ILLUSTRATION'
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p
-                  className="text-gray-500 mb-4"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                >
-                  extract key points from your conversation
-                </p>
-                <Button
-                  onClick={handleExtractPoints}
-                  className="bg-[#2a2a2a] text-[#f4f1ea]"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                >
-                  START
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </Card>

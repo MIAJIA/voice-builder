@@ -27,6 +27,7 @@ export function ChatInterface({
   const [streamingContent, setStreamingContent] = useState('');
   const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     profile,
@@ -42,6 +43,29 @@ export function ChatInterface({
   );
   const messages = currentConversation?.messages || [];
 
+  // Handle image upload (shared by paste and file select)
+  const handleImageUpload = useCallback(async (file: File) => {
+    setIsCompressing(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64 = event.target?.result as string;
+        const compressed = await compressImage(base64, {
+          maxWidth: 1024,
+          maxHeight: 1024,
+          quality: 0.8,
+        });
+        setPendingImage(compressed);
+      } catch (error) {
+        console.error('Failed to compress image:', error);
+        setPendingImage(event.target?.result as string);
+      } finally {
+        setIsCompressing(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   // Handle paste for images
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -52,30 +76,21 @@ export function ChatInterface({
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          setIsCompressing(true);
-          const reader = new FileReader();
-          reader.onload = async (event) => {
-            try {
-              const base64 = event.target?.result as string;
-              const compressed = await compressImage(base64, {
-                maxWidth: 1024,
-                maxHeight: 1024,
-                quality: 0.8,
-              });
-              setPendingImage(compressed);
-            } catch (error) {
-              console.error('Failed to compress image:', error);
-              setPendingImage(event.target?.result as string);
-            } finally {
-              setIsCompressing(false);
-            }
-          };
-          reader.readAsDataURL(file);
+          handleImageUpload(file);
         }
         break;
       }
     }
-  }, []);
+  }, [handleImageUpload]);
+
+  // Handle file select
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleImageUpload(file);
+    }
+    e.target.value = '';
+  }, [handleImageUpload]);
 
   // Initialize conversation with initial text/image
   useEffect(() => {
@@ -270,16 +285,51 @@ export function ChatInterface({
           </div>
         )}
 
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         <div className="flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder="输入你的想法... (可以粘贴图片)"
-            className="flex-1 min-h-[80px] resize-none"
-            disabled={isLoading}
-          />
+          <div className="relative flex-1">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder="按 Enter 发送，Shift+Enter 换行"
+              className="min-h-[80px] resize-none pr-12"
+              disabled={isLoading}
+            />
+            {/* Image upload button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute right-3 bottom-3 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="上传图片"
+              disabled={isLoading}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="flex justify-between mt-3">
           <Button
