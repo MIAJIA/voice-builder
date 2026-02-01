@@ -34,15 +34,27 @@ export function ChatInterface({
     currentConversationId,
     conversations,
     addConversation,
+    setCurrentConversationId,
     addMessageToCurrentConversation,
     updateLastAssistantMessage,
     checkRateLimit,
     incrementUsage,
   } = useStore();
 
+  // Ensure we have a valid conversation
+  // If currentConversationId doesn't exist in conversations, try to restore the most recent one
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId
   );
+
+  // Auto-restore: if no current conversation but we have conversations, use the most recent
+  useEffect(() => {
+    if (!currentConversation && conversations.length > 0) {
+      // Set to the most recent conversation
+      setCurrentConversationId(conversations[0].id);
+    }
+  }, [currentConversation, conversations, setCurrentConversationId]);
+
   const messages = currentConversation?.messages || [];
 
   // Handle image upload (shared by paste and file select)
@@ -222,14 +234,37 @@ export function ChatInterface({
     setPendingImage(null);
   };
 
+  const handleNewConversation = () => {
+    const newConversation = {
+      id: generateId(),
+      messages: [],
+      timestamp: Date.now(),
+    };
+    addConversation(newConversation);
+    setCurrentConversationId(newConversation.id);
+    setInput('');
+    setPendingImage(null);
+    setInitialized(false);
+  };
+
   const canSend = (input.trim() || pendingImage) && !isLoading && !isCompressing;
   const { remaining: chatRemaining } = checkRateLimit('chat');
 
   return (
     <div className="flex flex-col h-full">
-      {/* Voice Reminder */}
-      <div className="mb-4">
+      {/* Header with Voice Reminder and New Chat button */}
+      <div className="mb-4 flex items-center justify-between">
         <VoiceReminder />
+        {messages.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNewConversation}
+            className="text-xs"
+          >
+            + 新对话
+          </Button>
+        )}
       </div>
 
       {/* Messages */}
