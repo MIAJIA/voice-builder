@@ -45,6 +45,20 @@ export interface Conversation {
   timestamp: number;
 }
 
+// Rate limiting
+export interface RateLimitState {
+  date: string; // YYYY-MM-DD
+  chatCount: number;
+  transformCount: number;
+  imageCount: number;
+}
+
+export const DAILY_LIMITS = {
+  chat: 50,        // 50 conversations per day
+  transform: 100,  // 100 transforms per day
+  image: 10,       // 10 AI images per day
+};
+
 interface Store {
   // State
   profile: Profile | null;
@@ -52,6 +66,7 @@ interface Store {
   conversations: Conversation[];
   currentConversationId: string | null;
   hasCompletedOnboarding: boolean;
+  rateLimit: RateLimitState;
 
   // Actions
   setProfile: (profile: Profile) => void;
@@ -64,6 +79,9 @@ interface Store {
   getCurrentConversation: () => Conversation | null;
   addMessageToCurrentConversation: (message: Message) => void;
   updateLastAssistantMessage: (content: string) => void;
+  // Rate limiting
+  checkRateLimit: (type: 'chat' | 'transform' | 'image') => { allowed: boolean; remaining: number };
+  incrementUsage: (type: 'chat' | 'transform' | 'image') => void;
 }
 
 export const useStore = create<Store>()(
@@ -75,6 +93,12 @@ export const useStore = create<Store>()(
       conversations: [],
       currentConversationId: null,
       hasCompletedOnboarding: false,
+      rateLimit: {
+        date: new Date().toISOString().split('T')[0],
+        chatCount: 0,
+        transformCount: 0,
+        imageCount: 0,
+      },
 
       // Actions
       setProfile: (profile) => set({ profile }),
@@ -140,6 +164,59 @@ export const useStore = create<Store>()(
               }
               return { ...c, messages };
             }),
+          };
+        }),
+
+      // Rate limiting
+      checkRateLimit: (type) => {
+        const state = get();
+        const today = new Date().toISOString().split('T')[0];
+
+        // Reset if it's a new day
+        if (state.rateLimit.date !== today) {
+          set({
+            rateLimit: {
+              date: today,
+              chatCount: 0,
+              transformCount: 0,
+              imageCount: 0,
+            },
+          });
+          return { allowed: true, remaining: DAILY_LIMITS[type] };
+        }
+
+        const countKey = `${type}Count` as keyof Omit<RateLimitState, 'date'>;
+        const currentCount = state.rateLimit[countKey];
+        const limit = DAILY_LIMITS[type];
+
+        return {
+          allowed: currentCount < limit,
+          remaining: Math.max(0, limit - currentCount),
+        };
+      },
+
+      incrementUsage: (type) =>
+        set((state) => {
+          const today = new Date().toISOString().split('T')[0];
+          const countKey = `${type}Count` as keyof Omit<RateLimitState, 'date'>;
+
+          // Reset if new day
+          if (state.rateLimit.date !== today) {
+            return {
+              rateLimit: {
+                date: today,
+                chatCount: type === 'chat' ? 1 : 0,
+                transformCount: type === 'transform' ? 1 : 0,
+                imageCount: type === 'image' ? 1 : 0,
+              },
+            };
+          }
+
+          return {
+            rateLimit: {
+              ...state.rateLimit,
+              [countKey]: state.rateLimit[countKey] + 1,
+            },
           };
         }),
     }),

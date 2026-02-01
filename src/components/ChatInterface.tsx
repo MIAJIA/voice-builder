@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { VoiceReminder } from './VoiceReminder';
-import { useStore, generateId, Message } from '@/lib/store';
+import { useStore, generateId, Message, DAILY_LIMITS } from '@/lib/store';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { compressImage } from '@/lib/image-utils';
 
@@ -36,6 +36,8 @@ export function ChatInterface({
     addConversation,
     addMessageToCurrentConversation,
     updateLastAssistantMessage,
+    checkRateLimit,
+    incrementUsage,
   } = useStore();
 
   const currentConversation = conversations.find(
@@ -118,6 +120,16 @@ export function ChatInterface({
     // Need at least text or image
     if (!messageText.trim() && !messageImage) return;
     if (isLoading) return;
+
+    // Check rate limit
+    const { allowed, remaining } = checkRateLimit('chat');
+    if (!allowed) {
+      alert(`今日对话次数已用完（${DAILY_LIMITS.chat}次/天）。明天再来吧！`);
+      return;
+    }
+
+    // Increment usage
+    incrementUsage('chat');
 
     const userMessage: Message = {
       role: 'user',
@@ -211,6 +223,7 @@ export function ChatInterface({
   };
 
   const canSend = (input.trim() || pendingImage) && !isLoading && !isCompressing;
+  const { remaining: chatRemaining } = checkRateLimit('chat');
 
   return (
     <div className="flex flex-col h-full">
@@ -331,7 +344,7 @@ export function ChatInterface({
             </button>
           </div>
         </div>
-        <div className="flex justify-between mt-3">
+        <div className="flex justify-between items-center mt-3">
           <Button
             variant="outline"
             onClick={handleTransform}
@@ -339,9 +352,14 @@ export function ChatInterface({
           >
             转换输出
           </Button>
-          <Button onClick={() => handleSendMessage()} disabled={!canSend}>
-            {isLoading ? '思考中...' : '发送'}
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">
+              今日剩余: {chatRemaining}/{DAILY_LIMITS.chat}
+            </span>
+            <Button onClick={() => handleSendMessage()} disabled={!canSend}>
+              {isLoading ? '思考中...' : '发送'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

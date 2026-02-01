@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useStore, Platform } from '@/lib/store';
+import { useStore, Platform, DAILY_LIMITS } from '@/lib/store';
 import { PLATFORM_NAMES } from '@/lib/prompts';
 import { NoteCardTemplate, NoteCardData } from './NoteCardTemplate';
 import {
@@ -35,7 +35,7 @@ export function TransformResult({
   images = [],
   onClose,
 }: TransformResultProps) {
-  const { profile } = useStore();
+  const { profile, checkRateLimit, incrementUsage } = useStore();
 
   // Platform results
   const [platformResults, setPlatformResults] = useState<Record<Platform, PlatformResult>>({
@@ -76,6 +76,14 @@ export function TransformResult({
 
   // Streaming transform for active platform
   const handleStreamingTransform = useCallback(async (platform: Platform, length: OutputLength) => {
+    // Check rate limit
+    const { allowed } = checkRateLimit('transform');
+    if (!allowed) {
+      alert(`今日转换次数已用完（${DAILY_LIMITS.transform}次/天）。明天再来吧！`);
+      return;
+    }
+    incrementUsage('transform');
+
     // Cancel any existing stream
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -155,6 +163,11 @@ export function TransformResult({
     // Skip if already loaded or loading
     const current = platformResults[platform];
     if (current.text || current.isLoading) return;
+
+    // Check rate limit (silent fail for background tasks)
+    const { allowed } = checkRateLimit('transform');
+    if (!allowed) return;
+    incrementUsage('transform');
 
     setPlatformResults((prev) => ({
       ...prev,
@@ -321,6 +334,14 @@ export function TransformResult({
   };
 
   const handleGenerateAnimeImage = async (customPromptOverride?: string) => {
+    // Check rate limit
+    const { allowed, remaining } = checkRateLimit('image');
+    if (!allowed) {
+      setAnimeError(`今日 AI 配图次数已用完（${DAILY_LIMITS.image}次/天）。明天再来吧！`);
+      return;
+    }
+    incrementUsage('image');
+
     setIsGeneratingAnime(true);
     setAnimeError(null);
     try {
