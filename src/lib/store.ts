@@ -75,6 +75,7 @@ interface Store {
   deleteCapture: (id: string) => void;
   addConversation: (conversation: Conversation) => void;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
+  deleteConversation: (id: string) => void;
   setCurrentConversationId: (id: string | null) => void;
   getCurrentConversation: () => Conversation | null;
   addMessageToCurrentConversation: (message: Message) => void;
@@ -126,6 +127,20 @@ export const useStore = create<Store>()(
             c.id === id ? { ...c, ...updates } : c
           ),
         })),
+
+      deleteConversation: (id) =>
+        set((state) => {
+          const newConversations = state.conversations.filter((c) => c.id !== id);
+          // If deleting current conversation, switch to the first remaining one
+          let newCurrentId = state.currentConversationId;
+          if (state.currentConversationId === id) {
+            newCurrentId = newConversations.length > 0 ? newConversations[0].id : null;
+          }
+          return {
+            conversations: newConversations,
+            currentConversationId: newCurrentId,
+          };
+        }),
 
       setCurrentConversationId: (id) => set({ currentConversationId: id }),
 
