@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       response_format: 'b64_json',
     });
 
-    const imageData = dalleResponse.data[0]?.b64_json;
+    const imageData = dalleResponse.data?.[0]?.b64_json;
 
     if (!imageData) {
       console.log('[Anime Image] No image data returned');
