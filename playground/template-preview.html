@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图片模板 - 复古打字机风格</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Special+Elite&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #2a2a2a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .header h1 {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: #888;
+      font-size: 0.95rem;
+    }
+
+    .templates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 60px;
+      justify-content: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .template-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .template-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    /* ==================== 笔记卡片模板 ==================== */
+    .note-card {
+      width: 400px;
+      background: #f4f1ea;
+      padding: 16px;
+      position: relative;
+    }
+
+    .note-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.04;
+      pointer-events: none;
+    }
+
+    .note-inner {
+      background: #fffef9;
+      border: 2px solid #d4cfc4;
+      padding: 32px;
+      position: relative;
+      box-shadow: 4px 4px 0 #d4cfc4;
+    }
+
+    .note-title {
+      font-family: 'Special Elite', 'IBM Plex Mono', monospace;
+      font-size: 1.4rem;
+      color: #2a2a2a;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px dashed #d4cfc4;
+      position: relative;
+    }
+
+    .note-title::after {
+      content: '_';
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .note-points {
+      list-style: none;
+      margin-bottom: 28px;
+    }
+
+    .note-points li {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      line-height: 2;
+      color: #3a3a3a;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .note-points li::before {
+      content: '>';
+      position: absolute;
+      left: 0;
+      color: #8b7355;
+    }
+
+    .note-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid #e8e4db;
+    }
+
+    .note-author {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      color: #999;
+      letter-spacing: 0.05em;
+    }
+
+    .note-date {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: #bbb;
+    }
+
+    /* ==================== 图文组合模板 ==================== */
+    .image-text-card {
+      width: 400px;
+      background: #f4f1ea;
+      padding: 16px;
+      position: relative;
+    }
+
+    .image-text-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.04;
+      pointer-events: none;
+    }
+
+    .image-text-inner {
+      background: #fffef9;
+      border: 2px solid #d4cfc4;
+      padding: 24px;
+      position: relative;
+      box-shadow: 4px 4px 0 #d4cfc4;
+    }
+
+    .image-container {
+      background: #e8e4db;
+      border: 1px solid #d4cfc4;
+      padding: 8px;
+      margin-bottom: 20px;
+    }
+
+    .image-placeholder {
+      background: linear-gradient(135deg, #d4cfc4 0%, #c4bfb4 100%);
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8b7355;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+    }
+
+    .image-caption {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: #999;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .comment-text {
+      font-family: 'Special Elite', 'IBM Plex Mono', monospace;
+      font-size: 1rem;
+      line-height: 1.9;
+      color: #2a2a2a;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: repeating-linear-gradient(
+        transparent,
+        transparent 27px,
+        #e8e4db 27px,
+        #e8e4db 28px
+      );
+    }
+
+    .image-text-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .image-text-author {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      color: #999;
+      letter-spacing: 0.05em;
+    }
+
+    /* ==================== 变体展示 ==================== */
+    .variants {
+      margin-top: 80px;
+      text-align: center;
+    }
+
+    .variants h2 {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+      color: #888;
+    }
+
+    .variant-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      justify-content: center;
+    }
+
+    /* 暗色变体 */
+    .note-card.dark {
+      background: #1a1a1a;
+    }
+
+    .note-card.dark .note-inner {
+      background: #252525;
+      border-color: #3a3a3a;
+      box-shadow: 4px 4px 0 #0a0a0a;
+    }
+
+    .note-card.dark .note-title {
+      color: #e8e4db;
+      border-bottom-color: #3a3a3a;
+    }
+
+    .note-card.dark .note-points li {
+      color: #ccc;
+    }
+
+    .note-card.dark .note-points li::before {
+      color: #c4a77d;
+    }
+
+    .note-card.dark .note-footer {
+      border-top-color: #3a3a3a;
+    }
+
+    /* 紧凑金句变体 */
+    .quote-card {
+      width: 400px;
+      background: #f4f1ea;
+      padding: 16px;
+      position: relative;
+    }
+
+    .quote-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.04;
+      pointer-events: none;
+    }
+
+    .quote-inner {
+      background: #fffef9;
+      border: 2px solid #d4cfc4;
+      padding: 40px 32px;
+      position: relative;
+      box-shadow: 4px 4px 0 #d4cfc4;
+      text-align: center;
+    }
+
+    .quote-mark {
+      font-family: 'Special Elite', serif;
+      font-size: 4rem;
+      color: #d4cfc4;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .quote-text {
+      font-family: 'Special Elite', 'IBM Plex Mono', monospace;
+      font-size: 1.3rem;
+      line-height: 1.7;
+      color: #2a2a2a;
+      margin-bottom: 24px;
+    }
+
+    .quote-author {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: #8b7355;
+      letter-spacing: 0.1em;
+    }
+
+    /* ==================== Footer ==================== */
+    .footer {
+      text-align: center;
+      margin-top: 80px;
+      padding: 40px;
+      color: #666;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .footer p {
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>// 图片模板输出样本</h1>
+    <p>复古打字机风格 · Typewriter Style</p>
+  </div>
+
+  <div class="templates">
+    <!-- 笔记卡片 -->
+    <div class="template-section">
+      <div class="template-label">Template 01 / 笔记卡片</div>
+      <div class="note-card">
+        <div class="note-inner">
+          <h2 class="note-title">完美主义是创作的敌人</h2>
+          <ul class="note-points">
+            <li>不需要 100% 确定才能分享</li>
+            <li>你是在分享学习过程，不是发表权威结论</li>
+            <li>目标受众不是专家，是半年前的你</li>
+            <li>输出倒逼输入，分享本身就是成长</li>
+          </ul>
+          <div class="note-footer">
+            <span class="note-author">@MIAJIA</span>
+            <span class="note-date">2024.01.31</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图文组合 -->
+    <div class="template-section">
+      <div class="template-label">Template 02 / 图文组合</div>
+      <div class="image-text-card">
+        <div class="image-text-inner">
+          <div class="image-container">
+            <div class="image-placeholder">[ 用户截图 / IMAGE ]</div>
+            <div class="image-caption">fig.1 - screenshot</div>
+          </div>
+          <div class="comment-text">
+            看到这张图突然想到：我们总是在等待「准备好」的那一刻，但其实分享的过程本身就是准备的过程。
+          </div>
+          <div class="image-text-footer">
+            <span class="image-text-author">@MIAJIA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 变体展示 -->
+  <div class="variants">
+    <h2>// 风格变体</h2>
+    <div class="variant-row">
+      <!-- 暗色笔记卡片 -->
+      <div class="template-section">
+        <div class="template-label">Dark Mode</div>
+        <div class="note-card dark">
+          <div class="note-inner">
+            <h2 class="note-title">完美主义是创作的敌人</h2>
+            <ul class="note-points">
+              <li>不需要 100% 确定才能分享</li>
+              <li>你是在分享学习过程</li>
+              <li>目标受众是半年前的你</li>
+            </ul>
+            <div class="note-footer">
+              <span class="note-author">@MIAJIA</span>
+              <span class="note-date">2024.01.31</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 金句卡片 -->
+      <div class="template-section">
+        <div class="template-label">Quote Card</div>
+        <div class="quote-card">
+          <div class="quote-inner">
+            <div class="quote-mark">"</div>
+            <div class="quote-text">
+              完美主义是创作的敌人。<br>
+              半年前的你，会感谢现在敢于输出的你。
+            </div>
+            <div class="quote-author">— @MIAJIA</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Voice Builder · Transform Output Templates</p>
+  </div>
+</body>
+</html>

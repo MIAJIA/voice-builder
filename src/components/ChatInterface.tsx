@@ -50,7 +50,6 @@ export function ChatInterface({
   // Auto-restore: if no current conversation but we have conversations, use the most recent
   useEffect(() => {
     if (!currentConversation && conversations.length > 0) {
-      // Set to the most recent conversation
       setCurrentConversationId(conversations[0].id);
     }
   }, [currentConversation, conversations, setCurrentConversationId]);

@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transform 界面风格 Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600&family=ZCOOL+XiaoWei&family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    .header p {
+      color: #888;
+      font-size: 1.1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 40px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .style-card {
+      border-radius: 16px;
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .style-card:hover {
+      transform: translateY(-8px);
+    }
+
+    .style-label {
+      padding: 16px 24px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+    }
+
+    .style-label h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .style-label p {
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    /* ==================== Style 1: 轻盈编辑室 ==================== */
+    .style-1 .preview {
+      background: linear-gradient(145deg, #fdf6e3 0%, #f5ead6 100%);
+      padding: 32px;
+      min-height: 400px;
+      position: relative;
+    }
+
+    .style-1 .preview::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.03;
+      pointer-events: none;
+    }
+
+    .style-1 .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      font-family: 'Caveat', cursive;
+    }
+
+    .style-1 .tab {
+      padding: 8px 20px;
+      background: transparent;
+      border: 2px solid #c4a77d;
+      border-radius: 20px;
+      color: #8b7355;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .style-1 .tab.active {
+      background: #c4a77d;
+      color: #fff;
+    }
+
+    .style-1 .content-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(139, 115, 85, 0.1);
+      border: 1px solid #e8dcc8;
+      position: relative;
+    }
+
+    .style-1 .content-card::before {
+      content: '"';
+      position: absolute;
+      top: -10px;
+      left: 20px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 4rem;
+      color: #c4a77d;
+      opacity: 0.3;
+    }
+
+    .style-1 .content-text {
+      font-family: 'Noto Serif SC', serif;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: #5a4a3a;
+      margin-bottom: 20px;
+      padding-top: 20px;
+    }
+
+    .style-1 .actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .style-1 .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-family: 'Caveat', cursive;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .style-1 .btn-primary {
+      background: #c4a77d;
+      color: #fff;
+      border: none;
+    }
+
+    .style-1 .btn-secondary {
+      background: transparent;
+      border: 1px solid #c4a77d;
+      color: #8b7355;
+    }
+
+    /* ==================== Style 2: 极简工具 ==================== */
+    .style-2 .preview {
+      background: #fafafa;
+      padding: 32px;
+      min-height: 400px;
+    }
+
+    .style-2 .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 32px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .style-2 .tab {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: #999;
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .style-2 .tab.active {
+      color: #000;
+    }
+
+    .style-2 .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #000;
+    }
+
+    .style-2 .content-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      padding: 24px;
+    }
+
+    .style-2 .content-text {
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #333;
+      margin-bottom: 24px;
+    }
+
+    .style-2 .char-count {
+      font-size: 0.8rem;
+      color: #999;
+      text-align: right;
+      margin-bottom: 16px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .style-2 .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .style-2 .btn {
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .style-2 .btn-primary {
+      background: #000;
+      color: #fff;
+      border: none;
+    }
+
+    .style-2 .btn-secondary {
+      background: #fff;
+      border: 1px solid #ddd;
+      color: #333;
+    }
+
+    /* ==================== Style 3: 霓虹夜店 ==================== */
+    .style-3 .preview {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 32px;
+      min-height: 400px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .style-3 .preview::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 70%, rgba(255, 0, 128, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 30%, rgba(0, 255, 255, 0.1) 0%, transparent 50%);
+      animation: pulse 8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .style-3 .tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .style-3 .tab {
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .style-3 .tab.active {
+      background: rgba(255, 0, 128, 0.2);
+      border-color: #ff0080;
+      color: #ff0080;
+      box-shadow: 0 0 20px rgba(255, 0, 128, 0.3);
+    }
+
+    .style-3 .content-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 28px;
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .style-3 .content-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 24px;
+    }
+
+    .style-3 .actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .style-3 .btn {
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .style-3 .btn-primary {
+      background: linear-gradient(135deg, #ff0080, #ff8c00);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 20px rgba(255, 0, 128, 0.4);
+    }
+
+    .style-3 .btn-primary:hover {
+      box-shadow: 0 6px 30px rgba(255, 0, 128, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .style-3 .btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* ==================== Style 4: 复古打字机 ==================== */
+    .style-4 .preview {
+      background: #f4f1ea;
+      padding: 32px;
+      min-height: 400px;
+      position: relative;
+    }
+
+    .style-4 .preview::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      bottom: 20px;
+      border: 2px solid #d4cfc4;
+      pointer-events: none;
+    }
+
+    .style-4 .tabs {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding-left: 20px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .style-4 .tab {
+      padding: 0;
+      background: transparent;
+      border: none;
+      color: #999;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .style-4 .tab.active {
+      color: #2a2a2a;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    .style-4 .content-card {
+      background: #fffef9;
+      padding: 32px;
+      margin: 0 20px;
+      box-shadow: 4px 4px 0 #d4cfc4;
+    }
+
+    .style-4 .content-text {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      line-height: 2;
+      color: #2a2a2a;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .style-4 .content-text::after {
+      content: '|';
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .style-4 .actions {
+      display: flex;
+      gap: 16px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .style-4 .btn {
+      padding: 10px 24px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .style-4 .btn-primary {
+      background: #2a2a2a;
+      color: #f4f1ea;
+      border: none;
+    }
+
+    .style-4 .btn-secondary {
+      background: transparent;
+      border: 2px solid #2a2a2a;
+      color: #2a2a2a;
+    }
+
+    /* ==================== Style 5: 玻璃态现代 ==================== */
+    .style-5 .preview {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      padding: 32px;
+      min-height: 400px;
+      position: relative;
+    }
+
+    .style-5 .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .style-5 .tab {
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 100px;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .style-5 .tab.active {
+      background: rgba(255, 255, 255, 0.95);
+      color: #764ba2;
+      border-color: transparent;
+    }
+
+    .style-5 .content-card {
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .style-5 .content-text {
+      font-family: system-ui, sans-serif;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: #fff;
+      margin-bottom: 24px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .style-5 .template-switch {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .style-5 .template-btn {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .style-5 .template-btn.active {
+      background: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    .style-5 .actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .style-5 .btn {
+      padding: 14px 32px;
+      border-radius: 100px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .style-5 .btn-primary {
+      background: #fff;
+      color: #764ba2;
+      border: none;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .style-5 .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .style-5 .btn-secondary {
+      background: transparent;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      color: #fff;
+    }
+
+    /* ==================== Footer ==================== */
+    .footer {
+      text-align: center;
+      margin-top: 60px;
+      padding: 40px;
+      color: #666;
+    }
+
+    .footer p {
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>TRANSFORM 界面风格</h1>
+    <p>选择一个你喜欢的设计方向</p>
+  </div>
+
+  <div class="grid">
+    <!-- Style 1: 轻盈编辑室 -->
+    <div class="style-card style-1">
+      <div class="style-label">
+        <h2>1. 轻盈编辑室</h2>
+        <p>暖色调 · 手写元素 · 纸张质感 · 像在编辑自己的杂志</p>
+      </div>
+      <div class="preview">
+        <div class="tabs">
+          <button class="tab active">文字版</button>
+          <button class="tab">图片版</button>
+        </div>
+        <div class="content-card">
+          <div class="content-text">
+            完美主义是创作的敌人。与其等到 100% 确定再分享，不如把「分享学习过程」当作目标。半年前的你，会感谢现在敢于输出的你。
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary">复制文字</button>
+            <button class="btn btn-secondary">编辑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Style 2: 极简工具 -->
+    <div class="style-card style-2">
+      <div class="style-label">
+        <h2>2. 极简工具</h2>
+        <p>黑白灰 · 干净利落 · 专注内容本身</p>
+      </div>
+      <div class="preview">
+        <div class="tabs">
+          <button class="tab active">TEXT</button>
+          <button class="tab">IMAGE</button>
+        </div>
+        <div class="content-card">
+          <div class="content-text">
+            完美主义是创作的敌人。与其等到 100% 确定再分享，不如把「分享学习过程」当作目标。半年前的你，会感谢现在敢于输出的你。
+          </div>
+          <div class="char-count">86 / 280</div>
+          <div class="actions">
+            <button class="btn btn-secondary">Edit</button>
+            <button class="btn btn-primary">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Style 3: 霓虹夜店 -->
+    <div class="style-card style-3">
+      <div class="style-label">
+        <h2>3. 霓虹夜店</h2>
+        <p>深色背景 · 霓虹光晕 · 赛博朋克感</p>
+      </div>
+      <div class="preview">
+        <div class="tabs">
+          <button class="tab active">文字版</button>
+          <button class="tab">图片版</button>
+        </div>
+        <div class="content-card">
+          <div class="content-text">
+            完美主义是创作的敌人。与其等到 100% 确定再分享，不如把「分享学习过程」当作目标。半年前的你，会感谢现在敢于输出的你。
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary">复制</button>
+            <button class="btn btn-secondary">编辑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Style 4: 复古打字机 -->
+    <div class="style-card style-4">
+      <div class="style-label">
+        <h2>4. 复古打字机</h2>
+        <p>米色纸张 · 等宽字体 · 打字机效果</p>
+      </div>
+      <div class="preview">
+        <div class="tabs">
+          <button class="tab active">text</button>
+          <button class="tab">image</button>
+        </div>
+        <div class="content-card">
+          <div class="content-text">
+            完美主义是创作的敌人。与其等到 100% 确定再分享，不如把「分享学习过程」当作目标。半年前的你，会感谢现在敢于输出的你。
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary">COPY</button>
+            <button class="btn btn-secondary">EDIT</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Style 5: 玻璃态现代 -->
+    <div class="style-card style-5">
+      <div class="style-label">
+        <h2>5. 玻璃态现代</h2>
+        <p>毛玻璃效果 · 渐变背景 · 圆润现代</p>
+      </div>
+      <div class="preview">
+        <div class="tabs">
+          <button class="tab active">文字版</button>
+          <button class="tab">图片版</button>
+        </div>
+        <div class="content-card">
+          <div class="template-switch">
+            <button class="template-btn active">笔记卡片</button>
+            <button class="template-btn">图文组合</button>
+          </div>
+          <div class="content-text">
+            完美主义是创作的敌人。与其等到 100% 确定再分享，不如把「分享学习过程」当作目标。半年前的你，会感谢现在敢于输出的你。
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary">复制</button>
+            <button class="btn btn-secondary">编辑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>在浏览器中打开 playground/style-preview.html 查看效果</p>
+  </div>
+</body>
+</html>

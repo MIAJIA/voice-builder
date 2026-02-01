@@ -222,8 +222,6 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'voice-builder-storage',
-      // Fix for Next.js SSR hydration
-      skipHydration: true,
     }
   )
 );
