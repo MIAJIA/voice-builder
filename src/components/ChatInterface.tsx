@@ -26,6 +26,7 @@ export function ChatInterface({
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -249,22 +250,94 @@ export function ChatInterface({
   const canSend = (input.trim() || pendingImage) && !isLoading && !isCompressing;
   const { remaining: chatRemaining } = checkRateLimit('chat');
 
+  // Get conversation preview text
+  const getConversationPreview = (conv: typeof conversations[0]) => {
+    const firstUserMsg = conv.messages.find(m => m.role === 'user');
+    if (firstUserMsg?.content) {
+      return firstUserMsg.content.slice(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '');
+    }
+    if (firstUserMsg?.image) {
+      return '[图片]';
+    }
+    return '空对话';
+  };
+
+  // Format timestamp
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    if (isToday) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  };
+
+  const handleSwitchConversation = (id: string) => {
+    setCurrentConversationId(id);
+    setShowHistory(false);
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header with Voice Reminder and New Chat button */}
+      {/* Header with Voice Reminder and buttons */}
       <div className="mb-4 flex items-center justify-between">
         <VoiceReminder />
-        {messages.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNewConversation}
-            className="text-xs"
-          >
-            + 新对话
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {conversations.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHistory(!showHistory)}
+              className="text-xs"
+            >
+              历史 ({conversations.length})
+            </Button>
+          )}
+          {messages.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewConversation}
+              className="text-xs"
+            >
+              + 新对话
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div className="mb-4 border rounded-lg bg-white shadow-sm max-h-60 overflow-y-auto">
+          <div className="p-2 border-b bg-gray-50 sticky top-0">
+            <span className="text-xs font-medium text-gray-600">对话历史</span>
+          </div>
+          <div className="divide-y">
+            {conversations.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => handleSwitchConversation(conv.id)}
+                className={`w-full text-left p-3 hover:bg-gray-50 transition-colors ${
+                  conv.id === currentConversationId ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-sm text-gray-800 line-clamp-1 flex-1">
+                    {getConversationPreview(conv)}
+                  </p>
+                  <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">
+                    {formatTime(conv.timestamp)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {conv.messages.length} 条消息
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
