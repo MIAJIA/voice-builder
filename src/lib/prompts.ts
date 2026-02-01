@@ -1,4 +1,4 @@
-import { Profile } from './store';
+import { Profile, Platform, PlatformPersona } from './store';
 
 export function buildCoThinkSystemPrompt(profile: Profile | null): string {
   const profileSection = profile
@@ -75,27 +75,51 @@ ${profileSection}
 `;
 }
 
-export const TRANSFORM_TWITTER_PROMPT = `你是一个帮助用户将想法转换为 Twitter 推文的助手。
+export type OutputLength = 'concise' | 'normal' | 'detailed';
+
+export function buildTransformPrompt(length: OutputLength = 'normal'): string {
+  const lengthInstructions = {
+    concise: `
+## 长度要求：简洁
+- 1 个版本即可
+- 100 字符以内（中文约 50 字）
+- 只保留最核心的一句话
+- 像标题一样精炼`,
+    normal: `
+## 长度要求：正常
+- 提供 2-3 个不同角度的版本，用 --- 分隔
+- 每个版本 280 字符以内（中文约 140 字）
+- 包含 hook + 核心观点`,
+    detailed: `
+## 长度要求：详细
+- 提供 2-3 个不同角度的版本，用 --- 分隔
+- 每个版本可以是 Twitter thread 形式（2-3 条推文）
+- 用数字标注：1/ 2/ 3/
+- 充分展开论述，包含例子或背景
+- 总长度 500-800 字符`
+  };
+
+  return `你是一个帮助用户将想法转换为 Twitter 推文的助手。
 
 ## 任务
 将用户提供的内容转换为适合 Twitter 发布的推文格式。
 
-## 要求
-1. 长度：280 字符以内（中文约 140 字）
-2. 风格：
-   - 有吸引力的开头 (hook)
-   - 简洁有力
-   - 保持用户的原有语气和风格
-3. 结构建议：
-   - 开头抓眼球
-   - 中间传递核心观点
-   - 结尾可以是 call-to-action 或引发思考的问题
+${lengthInstructions[length]}
+
+## 风格要求
+- 有吸引力的开头 (hook)
+- 保持用户的原有语气和风格
+- 结尾可以是 call-to-action 或引发思考的问题
 
 ## 输出格式
-直接输出推文内容，不需要额外解释。如果内容丰富，可以提供 2-3 个不同角度的版本，用 --- 分隔。
+直接输出推文内容，不需要额外解释。
 
 ## 用户内容
 `;
+}
+
+// Keep for backwards compatibility
+export const TRANSFORM_TWITTER_PROMPT = buildTransformPrompt('normal');
 
 export const QUESTION_BANK = {
   opening: [
@@ -123,3 +147,143 @@ export const QUESTION_BANK = {
     "如果只能说一句话总结，你会说什么？"
   ]
 };
+
+// ==================== 多平台支持 ====================
+
+export const PLATFORM_NAMES: Record<Platform, string> = {
+  twitter: 'Twitter',
+  xiaohongshu: '小红书',
+  wechat: '朋友圈',
+  linkedin: 'LinkedIn',
+};
+
+// 平台默认特性
+export const PLATFORM_DEFAULTS: Record<Platform, {
+  tone: string;
+  style: string;
+  length: string;
+  emoji: boolean;
+}> = {
+  twitter: {
+    tone: '犀利、观点鲜明',
+    style: '短句、hook 开头、引发讨论',
+    length: '280字符以内（中文约140字）',
+    emoji: false,
+  },
+  xiaohongshu: {
+    tone: '亲切、分享感、真诚',
+    style: '口语化、分段清晰、适当emoji',
+    length: '500-800字',
+    emoji: true,
+  },
+  wechat: {
+    tone: '随性、真实、像跟朋友聊天',
+    style: '轻松自然、可以有情绪',
+    length: '200-500字',
+    emoji: true,
+  },
+  linkedin: {
+    tone: '专业、有深度、insights导向',
+    style: '结构化、有观点、商业视角',
+    length: '500-1000字',
+    emoji: false,
+  },
+};
+
+// 人设生成对话的问题
+export const PERSONA_QUESTIONS: Record<Platform, string[]> = {
+  twitter: [
+    '你在 Twitter 上想给人什么印象？（比如：专业、有趣、犀利、温和...）',
+    '你的目标读者是谁？他们关心什么话题？',
+    '有没有你特别喜欢或讨厌的表达方式？（比如：喜欢用比喻、讨厌说教...）',
+  ],
+  xiaohongshu: [
+    '你在小红书上想给人什么印象？（比如：专业博主、生活分享者、学习者...）',
+    '你的目标读者是谁？他们在小红书上找什么？',
+    '有没有你特别喜欢或讨厌的表达方式？（比如：喜欢用emoji、讨厌太营销...）',
+  ],
+  wechat: [
+    '你在朋友圈想给朋友什么印象？（比如：有思考的、有趣的、低调的...）',
+    '你的朋友圈主要是什么人？（同事、朋友、客户...）',
+    '有没有你特别喜欢或讨厌的朋友圈风格？',
+  ],
+  linkedin: [
+    '你在 LinkedIn 上想建立什么样的职业形象？',
+    '你的目标受众是谁？（同行、潜在客户、招聘者...）',
+    '有没有你特别喜欢或讨厌的 LinkedIn 内容风格？',
+  ],
+};
+
+// 生成人设的 prompt
+export const GENERATE_PERSONA_PROMPT = `你是一个帮助用户建立社交媒体人设的助手。
+
+## 任务
+根据用户对三个问题的回答，生成一个简洁的平台人设。
+
+## 输出格式
+必须返回有效的 JSON，格式如下：
+{
+  "platformBio": "一句话描述（15-30字）",
+  "tone": "2-4个语气关键词，逗号分隔",
+  "styleNotes": "1-2个具体的风格建议（30-50字）"
+}
+
+## 要求
+- platformBio 要简洁有力，像 slogan
+- tone 要具体，不要太抽象
+- styleNotes 要实用，能指导写作
+
+只返回 JSON，不要有其他内容。`;
+
+// 多平台 Transform prompt
+export function buildPlatformTransformPrompt(
+  platform: Platform,
+  persona: PlatformPersona | null,
+  length: OutputLength = 'normal'
+): string {
+  const defaults = PLATFORM_DEFAULTS[platform];
+  const platformName = PLATFORM_NAMES[platform];
+
+  const personaSection = persona?.isCustom
+    ? `
+## 用户人设（优先级最高）
+- 定位: ${persona.platformBio}
+- 语气: ${persona.tone}
+- 风格: ${persona.styleNotes}`
+    : '';
+
+  const lengthInstructions = {
+    concise: `
+## 长度要求：简洁
+- 1 个版本即可
+- 核心观点，精炼表达
+- ${platform === 'twitter' ? '100字以内' : platform === 'xiaohongshu' ? '200字以内' : platform === 'wechat' ? '100字以内' : '200字以内'}`,
+    normal: `
+## 长度要求：正常
+- 提供 2-3 个不同角度的版本，用 --- 分隔
+- ${defaults.length}`,
+    detailed: `
+## 长度要求：详细
+- 提供 2-3 个不同角度的版本，用 --- 分隔
+- 充分展开，可以是系列/thread形式
+- ${platform === 'twitter' ? '用 1/ 2/ 3/ 标注 thread' : '分段清晰，层次分明'}`
+  };
+
+  return `你是一个帮助用户将想法转换为 ${platformName} 内容的助手。
+
+## 平台特性
+- 语气: ${defaults.tone}
+- 风格: ${defaults.style}
+- Emoji: ${defaults.emoji ? '适当使用' : '少用或不用'}
+${personaSection}
+
+${lengthInstructions[length]}
+
+## 输出要求
+- 直接输出内容，不需要额外解释
+- 保持用户的原有观点和风格
+- 符合 ${platformName} 的阅读习惯
+
+## 用户内容
+`;
+}

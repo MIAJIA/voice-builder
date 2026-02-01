@@ -5,19 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useStore, generateId } from '@/lib/store';
+import { compressImage } from '@/lib/image-utils';
 
 interface CaptureInputProps {
-  onStartChat: (text: string) => void;
+  onStartChat: (text: string, image?: string) => void;
 }
 
 export function CaptureInput({ onStartChat }: CaptureInputProps) {
   const [text, setText] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { addCapture } = useStore();
 
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -26,10 +28,25 @@ export function CaptureInput({ onStartChat }: CaptureInputProps) {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
+          setIsCompressing(true);
           const reader = new FileReader();
-          reader.onload = (event) => {
-            const base64 = event.target?.result as string;
-            setImage(base64);
+          reader.onload = async (event) => {
+            try {
+              const base64 = event.target?.result as string;
+              // Compress image before storing
+              const compressed = await compressImage(base64, {
+                maxWidth: 1024,
+                maxHeight: 1024,
+                quality: 0.8,
+              });
+              setImage(compressed);
+            } catch (error) {
+              console.error('Failed to compress image:', error);
+              // Fall back to original if compression fails
+              setImage(event.target?.result as string);
+            } finally {
+              setIsCompressing(false);
+            }
           };
           reader.readAsDataURL(file);
         }
@@ -54,8 +71,9 @@ export function CaptureInput({ onStartChat }: CaptureInputProps) {
   };
 
   const handleStartChat = () => {
-    if (!text.trim()) return;
-    onStartChat(text.trim());
+    // Allow starting with text only, image only, or both
+    if (!text.trim() && !image) return;
+    onStartChat(text.trim(), image || undefined);
     setText('');
     setImage(null);
   };
@@ -63,6 +81,8 @@ export function CaptureInput({ onStartChat }: CaptureInputProps) {
   const removeImage = () => {
     setImage(null);
   };
+
+  const canStartChat = text.trim() || image;
 
   return (
     <Card className="p-6">
@@ -77,7 +97,11 @@ export function CaptureInput({ onStartChat }: CaptureInputProps) {
         className="min-h-[120px] resize-none mb-4"
       />
 
-      {image && (
+      {isCompressing && (
+        <div className="mb-4 text-sm text-gray-500">压缩图片中...</div>
+      )}
+
+      {image && !isCompressing && (
         <div className="relative mb-4 inline-block">
           <img
             src={image}
@@ -97,11 +121,14 @@ export function CaptureInput({ onStartChat }: CaptureInputProps) {
         <Button
           variant="outline"
           onClick={handleSaveCapture}
-          disabled={!text.trim() && !image}
+          disabled={(!text.trim() && !image) || isCompressing}
         >
           保存草稿
         </Button>
-        <Button onClick={handleStartChat} disabled={!text.trim()}>
+        <Button
+          onClick={handleStartChat}
+          disabled={!canStartChat || isCompressing}
+        >
           开始 Co-think →
         </Button>
       </div>

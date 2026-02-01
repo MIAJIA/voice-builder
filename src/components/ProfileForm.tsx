@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useStore, Profile } from '@/lib/store';
+import { useStore, Profile, Platform, PlatformPersona } from '@/lib/store';
+import { PLATFORM_NAMES, PLATFORM_DEFAULTS } from '@/lib/prompts';
+import { PersonaSetupDialog } from './PersonaSetupDialog';
 
 const toneOptions = [
   { value: 'casual', label: '轻松随意', description: '像和朋友聊天' },
@@ -27,6 +29,10 @@ export function ProfileForm() {
   const [interests, setInterests] = useState<string[]>(
     profile?.interests || []
   );
+  const [platformPersonas, setPlatformPersonas] = useState<Profile['platformPersonas']>(
+    profile?.platformPersonas || {}
+  );
+  const [setupPlatform, setSetupPlatform] = useState<Platform | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -35,6 +41,7 @@ export function ProfileForm() {
       setTone(profile.tone);
       setAvoidWords(profile.avoidWords);
       setInterests(profile.interests);
+      setPlatformPersonas(profile.platformPersonas || {});
     }
   }, [profile]);
 
@@ -68,10 +75,35 @@ export function ProfileForm() {
       tone,
       avoidWords,
       interests,
+      platformPersonas,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const handleSavePersona = (platform: Platform, persona: PlatformPersona) => {
+    const newPersonas = { ...platformPersonas, [platform]: persona };
+    setPlatformPersonas(newPersonas);
+    setSetupPlatform(null);
+    // Auto-save
+    setProfile({
+      bio,
+      tone,
+      avoidWords,
+      interests,
+      platformPersonas: newPersonas,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleDeletePersona = (platform: Platform) => {
+    const newPersonas = { ...platformPersonas };
+    delete newPersonas[platform];
+    setPlatformPersonas(newPersonas);
+  };
+
+  const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
 
   const handleKeyDown = (
     e: React.KeyboardEvent,
@@ -199,12 +231,84 @@ export function ProfileForm() {
         </div>
       </Card>
 
+      {/* Platform Personas */}
+      <Card className="p-6">
+        <h3 className="font-medium mb-3">平台人设</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          为不同平台设置专属人设，输出内容时会根据平台调整风格
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {platforms.map((platform) => {
+            const persona = platformPersonas?.[platform];
+            const defaults = PLATFORM_DEFAULTS[platform];
+            const name = PLATFORM_NAMES[platform];
+
+            return (
+              <div
+                key={platform}
+                className={`p-4 rounded-lg border ${
+                  persona?.isCustom
+                    ? 'border-blue-300 bg-blue-50'
+                    : 'border-gray-200 bg-gray-50'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="font-medium">{name}</div>
+                  <Badge variant={persona?.isCustom ? 'default' : 'secondary'}>
+                    {persona?.isCustom ? '已定制' : '默认'}
+                  </Badge>
+                </div>
+                {persona?.isCustom ? (
+                  <div className="text-sm text-gray-600 mb-3">
+                    <p className="line-clamp-2">{persona.platformBio}</p>
+                    <p className="text-xs text-gray-400 mt-1">{persona.tone}</p>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 mb-3">
+                    <p>语气: {defaults.tone}</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSetupPlatform(platform)}
+                  >
+                    {persona?.isCustom ? '修改' : '设置'}
+                  </Button>
+                  {persona?.isCustom && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => handleDeletePersona(platform)}
+                    >
+                      重置
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
       {/* Save Button */}
       <div className="flex justify-end">
         <Button onClick={handleSave} className="min-w-[120px]">
           {saved ? '已保存 ✓' : '保存设置'}
         </Button>
       </div>
+
+      {/* Persona Setup Dialog */}
+      {setupPlatform && (
+        <PersonaSetupDialog
+          platform={setupPlatform}
+          currentPersona={platformPersonas?.[setupPlatform]}
+          onSave={(persona) => handleSavePersona(setupPlatform, persona)}
+          onClose={() => setSetupPlatform(null)}
+        />
+      )}
     </div>
   );
 }

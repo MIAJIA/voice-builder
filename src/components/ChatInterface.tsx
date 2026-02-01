@@ -1,22 +1,31 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { VoiceReminder } from './VoiceReminder';
 import { useStore, generateId, Message } from '@/lib/store';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { compressImage } from '@/lib/image-utils';
 
 interface ChatInterfaceProps {
   initialText?: string;
-  onTransform?: (content: string) => void;
+  initialImage?: string;
+  onTransform?: (content: string, images: string[]) => void;
 }
 
-export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) {
+export function ChatInterface({
+  initialText,
+  initialImage,
+  onTransform,
+}: ChatInterfaceProps) {
   const [input, setInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [initialized, setInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -33,34 +42,76 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
   );
   const messages = currentConversation?.messages || [];
 
-  // Initialize conversation with initial text
-  useEffect(() => {
-    if (initialText && !currentConversationId) {
-      const newConversation = {
-        id: generateId(),
-        messages: [],
-        timestamp: Date.now(),
-      };
-      addConversation(newConversation);
-      // Send initial message after a short delay
-      setTimeout(() => {
-        handleSendMessage(initialText);
-      }, 100);
+  // Handle paste for images
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          setIsCompressing(true);
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            try {
+              const base64 = event.target?.result as string;
+              const compressed = await compressImage(base64, {
+                maxWidth: 1024,
+                maxHeight: 1024,
+                quality: 0.8,
+              });
+              setPendingImage(compressed);
+            } catch (error) {
+              console.error('Failed to compress image:', error);
+              setPendingImage(event.target?.result as string);
+            } finally {
+              setIsCompressing(false);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+        break;
+      }
     }
-  }, [initialText]);
+  }, []);
+
+  // Initialize conversation with initial text/image
+  useEffect(() => {
+    if (initialized) return;
+    if (!initialText && !initialImage) return;
+    if (!currentConversationId) return;
+
+    setInitialized(true);
+
+    // Send initial message after a short delay
+    setTimeout(() => {
+      handleSendMessage(initialText || '', initialImage);
+    }, 100);
+  }, [initialText, initialImage, currentConversationId, initialized]);
 
   // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
-  const handleSendMessage = async (text?: string) => {
-    const messageText = text || input;
-    if (!messageText.trim() || isLoading) return;
+  const handleSendMessage = async (text?: string, image?: string) => {
+    const messageText = text ?? input;
+    const messageImage = image ?? pendingImage;
 
-    const userMessage: Message = { role: 'user', content: messageText.trim() };
+    // Need at least text or image
+    if (!messageText.trim() && !messageImage) return;
+    if (isLoading) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: messageText.trim(),
+      image: messageImage || undefined,
+    };
     addMessageToCurrentConversation(userMessage);
     setInput('');
+    setPendingImage(null);
     setIsLoading(true);
     setStreamingContent('');
 
@@ -124,6 +175,11 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
       .map((m) => m.content)
       .join('\n\n');
 
+    // Collect all images from user messages
+    const images = messages
+      .filter((m) => m.role === 'user' && m.image)
+      .map((m) => m.image!);
+
     const assistantSummary = messages
       .filter((m) => m.role === 'assistant')
       .slice(-1)[0]?.content;
@@ -132,8 +188,14 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
       ? `用户原始想法：\n${userContent}\n\nAI 总结：\n${assistantSummary}`
       : userContent;
 
-    onTransform?.(contentToTransform);
+    onTransform?.(contentToTransform, images);
   };
+
+  const removePendingImage = () => {
+    setPendingImage(null);
+  };
+
+  const canSend = (input.trim() || pendingImage) && !isLoading && !isCompressing;
 
   return (
     <div className="flex flex-col h-full">
@@ -147,7 +209,9 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
         {messages.length === 0 && (
           <div className="text-center text-gray-500 py-8">
             <p className="text-lg mb-2">开始你的想法采访</p>
-            <p className="text-sm">输入你想分享的想法，我会帮你把它变得更清晰</p>
+            <p className="text-sm">
+              输入你想分享的想法，我会帮你把它变得更清晰
+            </p>
           </div>
         )}
 
@@ -163,6 +227,16 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
             <div className="text-xs text-gray-500 mb-1">
               {message.role === 'user' ? '你' : 'AI 采访者'}
             </div>
+            {/* Display image if present */}
+            {message.image && (
+              <div className="mb-2">
+                <img
+                  src={message.image}
+                  alt="Attached"
+                  className="max-w-full max-h-48 rounded-lg border"
+                />
+              </div>
+            )}
             <div className="whitespace-pre-wrap">
               {message.content ||
                 (isLoading && index === messages.length - 1 ? (
@@ -176,12 +250,33 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
 
       {/* Input */}
       <div className="border-t pt-4">
+        {/* Pending image preview */}
+        {isCompressing && (
+          <div className="mb-3 text-sm text-gray-500">压缩图片中...</div>
+        )}
+        {pendingImage && !isCompressing && (
+          <div className="relative mb-3 inline-block">
+            <img
+              src={pendingImage}
+              alt="Pending"
+              className="max-w-full max-h-32 rounded-lg border"
+            />
+            <button
+              onClick={removePendingImage}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入你的想法..."
+            onPaste={handlePaste}
+            placeholder="输入你的想法... (可以粘贴图片)"
             className="flex-1 min-h-[80px] resize-none"
             disabled={isLoading}
           />
@@ -192,9 +287,9 @@ export function ChatInterface({ initialText, onTransform }: ChatInterfaceProps) 
             onClick={handleTransform}
             disabled={messages.length < 2}
           >
-            转换为 Twitter
+            转换输出
           </Button>
-          <Button onClick={() => handleSendMessage()} disabled={isLoading || !input.trim()}>
+          <Button onClick={() => handleSendMessage()} disabled={!canSend}>
             {isLoading ? '思考中...' : '发送'}
           </Button>
         </div>

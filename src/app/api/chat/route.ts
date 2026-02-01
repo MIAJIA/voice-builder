@@ -3,21 +3,88 @@ import { buildCoThinkSystemPrompt } from '@/lib/prompts';
 
 const client = new Anthropic();
 
+// Message format from client
+interface ClientMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  image?: string; // base64 data URI
+}
+
+// Convert client message to Anthropic API format
+function formatMessageContent(
+  message: ClientMessage
+): Anthropic.MessageParam['content'] {
+  // Assistant messages are always text-only
+  if (message.role === 'assistant') {
+    return message.content;
+  }
+
+  // User messages can have text + image
+  if (message.image) {
+    const content: Anthropic.ContentBlockParam[] = [];
+
+    // Add image block
+    // Extract base64 and media type from data URI
+    const match = message.image.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      const mediaType = match[1] as
+        | 'image/jpeg'
+        | 'image/png'
+        | 'image/gif'
+        | 'image/webp';
+      const base64Data = match[2];
+
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mediaType,
+          data: base64Data,
+        },
+      });
+    }
+
+    // Add text block if present
+    if (message.content) {
+      content.push({
+        type: 'text',
+        text: message.content,
+      });
+    } else {
+      // If no text, add a prompt to describe/discuss the image
+      content.push({
+        type: 'text',
+        text: '请看这张图片，然后开始采访我关于它的想法。',
+      });
+    }
+
+    return content;
+  }
+
+  // Text-only message
+  return message.content;
+}
+
 export async function POST(request: Request) {
   try {
     const { messages, profile } = await request.json();
 
     const systemPrompt = buildCoThinkSystemPrompt(profile);
 
+    // Format messages for Anthropic API
+    const formattedMessages: Anthropic.MessageParam[] = messages.map(
+      (m: ClientMessage) => ({
+        role: m.role,
+        content: formatMessageContent(m),
+      })
+    );
+
     // Create a streaming response
     const stream = await client.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+      messages: formattedMessages,
     });
 
     // Create a ReadableStream for SSE

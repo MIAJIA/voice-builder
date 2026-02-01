@@ -1,11 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin';
+
+export interface PlatformPersona {
+  platformBio: string;      // "分享产品思考的创业者"
+  tone: string;             // "专业但不装"
+  styleNotes: string;       // "多用案例，避免空泛理论"
+  isCustom: boolean;        // 是否用户自定义（vs 默认）
+}
+
 export interface Profile {
   bio: string;
   tone: 'casual' | 'professional' | 'humorous';
   avoidWords: string[];
   interests: string[];
+  // 平台人设
+  platformPersonas?: {
+    twitter?: PlatformPersona;
+    xiaohongshu?: PlatformPersona;
+    wechat?: PlatformPersona;
+    linkedin?: PlatformPersona;
+  };
 }
 
 export interface Capture {
@@ -18,6 +34,7 @@ export interface Capture {
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
+  image?: string; // base64 data URI (for user messages with images)
 }
 
 export interface Conversation {
@@ -34,9 +51,11 @@ interface Store {
   captures: Capture[];
   conversations: Conversation[];
   currentConversationId: string | null;
+  hasCompletedOnboarding: boolean;
 
   // Actions
   setProfile: (profile: Profile) => void;
+  setOnboardingCompleted: (completed: boolean) => void;
   addCapture: (capture: Capture) => void;
   deleteCapture: (id: string) => void;
   addConversation: (conversation: Conversation) => void;
@@ -55,9 +74,11 @@ export const useStore = create<Store>()(
       captures: [],
       conversations: [],
       currentConversationId: null,
+      hasCompletedOnboarding: false,
 
       // Actions
       setProfile: (profile) => set({ profile }),
+      setOnboardingCompleted: (completed) => set({ hasCompletedOnboarding: completed }),
 
       addCapture: (capture) =>
         set((state) => ({

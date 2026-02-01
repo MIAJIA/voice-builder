@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CaptureInput } from '@/components/CaptureInput';
@@ -9,10 +10,17 @@ import { useStore, generateId } from '@/lib/store';
 
 export default function Home() {
   const router = useRouter();
-  const { captures, deleteCapture, addConversation, setCurrentConversationId } =
+  const { captures, deleteCapture, addConversation, setCurrentConversationId, hasCompletedOnboarding } =
     useStore();
 
-  const handleStartChat = (text: string) => {
+  // Redirect to onboarding if not completed
+  useEffect(() => {
+    if (!hasCompletedOnboarding) {
+      router.push('/onboarding');
+    }
+  }, [hasCompletedOnboarding, router]);
+
+  const handleStartChat = (text: string, image?: string) => {
     const newConversation = {
       id: generateId(),
       messages: [],
@@ -20,10 +28,31 @@ export default function Home() {
     };
     addConversation(newConversation);
     setCurrentConversationId(newConversation.id);
-    router.push(`/chat?text=${encodeURIComponent(text)}`);
+
+    // Store text and image in sessionStorage (avoid URL length limits)
+    if (text) {
+      sessionStorage.setItem('chat-initial-text', text);
+    } else {
+      sessionStorage.removeItem('chat-initial-text');
+    }
+    if (image) {
+      sessionStorage.setItem('chat-initial-image', image);
+    } else {
+      sessionStorage.removeItem('chat-initial-image');
+    }
+
+    const params = new URLSearchParams();
+    if (text) params.set('hasText', '1');
+    if (image) params.set('hasImage', '1');
+
+    router.push(`/chat?${params.toString()}`);
   };
 
-  const handleCaptureToChat = (captureId: string, text: string) => {
+  const handleCaptureToChat = (
+    captureId: string,
+    text: string,
+    image?: string
+  ) => {
     const newConversation = {
       id: generateId(),
       captureId,
@@ -32,7 +61,24 @@ export default function Home() {
     };
     addConversation(newConversation);
     setCurrentConversationId(newConversation.id);
-    router.push(`/chat?text=${encodeURIComponent(text)}`);
+
+    // Store text and image in sessionStorage (avoid URL length limits)
+    if (text) {
+      sessionStorage.setItem('chat-initial-text', text);
+    } else {
+      sessionStorage.removeItem('chat-initial-text');
+    }
+    if (image) {
+      sessionStorage.setItem('chat-initial-image', image);
+    } else {
+      sessionStorage.removeItem('chat-initial-image');
+    }
+
+    const params = new URLSearchParams();
+    if (text) params.set('hasText', '1');
+    if (image) params.set('hasImage', '1');
+
+    router.push(`/chat?${params.toString()}`);
   };
 
   const formatDate = (timestamp: number) => {
@@ -95,7 +141,7 @@ export default function Home() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <p className="text-gray-800 whitespace-pre-wrap line-clamp-3">
-                        {capture.text}
+                        {capture.text || '(图片)'}
                       </p>
                       {capture.image && (
                         <img
@@ -113,7 +159,11 @@ export default function Home() {
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() =>
-                          handleCaptureToChat(capture.id, capture.text)
+                          handleCaptureToChat(
+                            capture.id,
+                            capture.text,
+                            capture.image
+                          )
                         }
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                       >
@@ -137,7 +187,9 @@ export default function Home() {
         {captures.length === 0 && (
           <div className="text-center py-10 text-gray-500">
             <p className="mb-2">还没有保存的想法</p>
-            <p className="text-sm">在上方输入框中捕捉你的想法，或直接开始 Co-think</p>
+            <p className="text-sm">
+              在上方输入框中捕捉你的想法，或直接开始 Co-think
+            </p>
           </div>
         )}
       </main>
@@ -145,7 +197,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t bg-white mt-auto">
         <div className="max-w-4xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
-          <p>Voice Builder MVP v0.1</p>
+          <p>Voice Builder MVP v0.2</p>
           <p className="mt-1">输出倒逼输入，分享学习过程</p>
         </div>
       </footer>
