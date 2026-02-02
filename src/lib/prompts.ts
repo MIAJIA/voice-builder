@@ -235,11 +235,14 @@ export const GENERATE_PERSONA_PROMPT = `你是一个帮助用户建立社交媒�
 
 只返回 JSON，不要有其他内容。`;
 
+export type OutputLanguage = 'zh' | 'en' | 'auto';
+
 // 多平台 Transform prompt
 export function buildPlatformTransformPrompt(
   platform: Platform,
   persona: PlatformPersona | null,
-  length: OutputLength = 'normal'
+  length: OutputLength = 'normal',
+  language: OutputLanguage = 'auto'
 ): string {
   const defaults = PLATFORM_DEFAULTS[platform];
   const platformName = PLATFORM_NAMES[platform];
@@ -269,6 +272,23 @@ export function buildPlatformTransformPrompt(
 - ${platform === 'twitter' ? '用 1/ 2/ 3/ 标注 thread' : '分段清晰，层次分明'}`
   };
 
+  const languageInstruction = language === 'en'
+    ? `
+## 语言要求：英文
+- 必须用英文输出
+- 如果用户输入是中文，翻译并改写成地道的英文表达
+- 保持意思不变，但要符合英文母语者的表达习惯`
+    : language === 'zh'
+    ? `
+## 语言要求：中文
+- 必须用中文输出
+- 如果用户输入是英文，翻译并改写成地道的中文表达`
+    : `
+## 语言要求：自动
+- 根据平台习惯选择语言
+- Twitter/LinkedIn 默认英文，小红书/朋友圈 默认中文
+- 但如果用户明显想用另一种语言，尊重用户意图`;
+
   return `你是一个帮助用户将想法转换为 ${platformName} 内容的助手。
 
 ## 平台特性
@@ -278,6 +298,7 @@ export function buildPlatformTransformPrompt(
 ${personaSection}
 
 ${lengthInstructions[length]}
+${languageInstruction}
 
 ## 输出要求
 - 直接输出内容，不需要额外解释

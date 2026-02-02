@@ -3,6 +3,7 @@ import { Platform, Profile } from '@/lib/store';
 import {
   buildPlatformTransformPrompt,
   OutputLength,
+  OutputLanguage,
 } from '@/lib/prompts';
 
 const client = new Anthropic();
@@ -14,12 +15,14 @@ export async function POST(request: Request) {
       profile,
       platform = 'twitter',
       length = 'normal',
+      language = 'auto',
       stream = false,
     } = (await request.json()) as {
       content: string;
       profile?: Profile;
       platform?: Platform;
       length?: OutputLength;
+      language?: OutputLanguage;
       stream?: boolean;
     };
 
@@ -30,7 +33,8 @@ export async function POST(request: Request) {
     let systemPrompt = buildPlatformTransformPrompt(
       platform,
       persona,
-      length as OutputLength
+      length as OutputLength,
+      language as OutputLanguage
     );
 
     // Add global profile context if available (for non-custom personas)

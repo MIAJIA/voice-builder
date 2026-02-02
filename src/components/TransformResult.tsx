@@ -20,12 +20,14 @@ interface TransformResultProps {
 }
 
 type OutputLength = 'concise' | 'normal' | 'detailed';
+type OutputLanguage = 'zh' | 'en' | 'auto';
 
 interface PlatformResult {
   text: string | null;
   isLoading: boolean;
   isStreaming: boolean;
   length: OutputLength;
+  language: OutputLanguage;
 }
 
 const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
@@ -37,12 +39,12 @@ export function TransformResult({
 }: TransformResultProps) {
   const { profile, checkRateLimit, incrementUsage } = useStore();
 
-  // Platform results
+  // Platform results - Twitter/LinkedIn default to English, 小红书/朋友圈 default to Chinese
   const [platformResults, setPlatformResults] = useState<Record<Platform, PlatformResult>>({
-    twitter: { text: null, isLoading: false, isStreaming: false, length: 'normal' },
-    xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal' },
-    wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal' },
-    linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal' },
+    twitter: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en' },
+    xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh' },
+    wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh' },
+    linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en' },
   });
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter');
   const [copiedText, setCopiedText] = useState(false);
@@ -99,7 +101,7 @@ export function TransformResult({
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, stream: true }),
+        body: JSON.stringify({ content, profile, platform, length, language: platformResults[platform].language, stream: true }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -178,7 +180,7 @@ export function TransformResult({
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, stream: false }),
+        body: JSON.stringify({ content, profile, platform, length, language: platformResults[platform].language, stream: false }),
       });
       const data = await response.json();
       setPlatformResults((prev) => ({
@@ -241,6 +243,15 @@ export function TransformResult({
       [platform]: { ...prev[platform], length },
     }));
     handleStreamingTransform(platform, length);
+  };
+
+  const handleLanguageChange = (platform: Platform, language: OutputLanguage) => {
+    setPlatformResults((prev) => ({
+      ...prev,
+      [platform]: { ...prev[platform], language },
+    }));
+    // Regenerate with new language
+    handleStreamingTransform(platform, platformResults[platform].length);
   };
 
   const handleExtractPoints = async () => {
@@ -538,6 +549,44 @@ export function TransformResult({
                   style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                 >
                   {getLengthDescription(activePlatform, currentResult.length)}
+                </p>
+              </div>
+
+              {/* Language selector */}
+              <div className="mb-6">
+                <label
+                  className="text-sm text-gray-500 mb-2 block"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                >
+                  output_language:
+                </label>
+                <div className="flex gap-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                  <button
+                    onClick={() => handleLanguageChange(activePlatform, 'zh')}
+                    className={`px-4 py-2 border transition-colors ${
+                      currentResult.language === 'zh'
+                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                    }`}
+                  >
+                    中文
+                  </button>
+                  <button
+                    onClick={() => handleLanguageChange(activePlatform, 'en')}
+                    className={`px-4 py-2 border transition-colors ${
+                      currentResult.language === 'en'
+                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+                <p
+                  className="text-xs text-gray-400 mt-2"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                >
+                  {currentResult.language === 'zh' ? '// 输出中文内容' : '// Output in English'}
                 </p>
               </div>
 
