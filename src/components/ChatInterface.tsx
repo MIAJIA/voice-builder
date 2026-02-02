@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { VoiceReminder } from './VoiceReminder';
-import { useStore, Message, DAILY_LIMITS } from '@/lib/store';
+import { useStore, Message, DAILY_LIMITS, generateId } from '@/lib/store';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { compressImage } from '@/lib/image-utils';
 
@@ -34,6 +34,7 @@ export function ChatInterface({
     currentConversationId,
     conversations,
     setCurrentConversationId,
+    addConversation,
     addMessageToCurrentConversation,
     updateLastAssistantMessage,
     checkRateLimit,
@@ -140,6 +141,16 @@ export function ChatInterface({
 
     // Increment usage
     incrementUsage('chat');
+
+    // Create a new conversation if none exists
+    if (!currentConversationId || !currentConversation) {
+      const newConversation = {
+        id: generateId(),
+        messages: [],
+        timestamp: Date.now(),
+      };
+      addConversation(newConversation);
+    }
 
     const userMessage: Message = {
       role: 'user',
