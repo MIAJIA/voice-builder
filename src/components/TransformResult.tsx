@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useStore, Platform, DAILY_LIMITS } from '@/lib/store';
+import { useStore, Platform, DAILY_LIMITS, generateId } from '@/lib/store';
 import {
   PLATFORM_NAMES,
   Audience,
@@ -18,6 +18,8 @@ import {
   downloadImage,
   copyImageToClipboard,
 } from '@/lib/generate-image';
+import { analytics } from '@/lib/posthog';
+import { addAttribution, getShareUrl } from '@/lib/sharing';
 
 interface TransformResultProps {
   content: string;
@@ -45,7 +47,7 @@ export function TransformResult({
   images = [],
   onClose,
 }: TransformResultProps) {
-  const { profile, checkRateLimit, incrementUsage } = useStore();
+  const { profile, checkRateLimit, incrementUsage, addConversation, setCurrentConversationId } = useStore();
 
   // Platform results - Twitter/LinkedIn default to English, 小红书/朋友圈 default to Chinese
   const [platformResults, setPlatformResults] = useState<Record<Platform, PlatformResult>>({
@@ -96,10 +98,14 @@ export function TransformResult({
     // Check rate limit
     const { allowed } = checkRateLimit('transform');
     if (!allowed) {
+      analytics.trackRateLimitHit('transform');
       alert(`今日转换次数已用完（${DAILY_LIMITS.transform}次/天）。明天再来吧！`);
       return;
     }
     incrementUsage('transform');
+
+    // Track transform analytics
+    analytics.trackTransformStarted(platform, { angle, audience });
 
     // Cancel any existing stream
     if (abortControllerRef.current) {
@@ -139,6 +145,7 @@ export function TransformResult({
           if (line.startsWith('data: ')) {
             const data = line.slice(6);
             if (data === '[DONE]') {
+              analytics.trackTransformCompleted(platform, { angle, audience, length });
               setPlatformResults((prev) => ({
                 ...prev,
                 [platform]: { ...prev[platform], isLoading: false, isStreaming: false },
@@ -335,6 +342,7 @@ export function TransformResult({
   const handleDownloadImage = () => {
     if (generatedImage) {
       downloadImage(generatedImage, `note-${Date.now()}.png`);
+      analytics.trackImageDownloaded();
     }
   };
 
@@ -342,6 +350,7 @@ export function TransformResult({
     if (generatedImage) {
       const success = await copyImageToClipboard(generatedImage);
       if (success) {
+        analytics.trackImageCopied();
         setCopiedImage(true);
         setTimeout(() => setCopiedImage(false), 2000);
       }
@@ -351,6 +360,7 @@ export function TransformResult({
   const handleCopyText = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      analytics.trackTransformCopied(activePlatform);
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 2000);
     } catch {
@@ -361,26 +371,22 @@ export function TransformResult({
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   const handleShare = async (text: string, platform: Platform) => {
-    // Copy text to clipboard first
-    await navigator.clipboard.writeText(text);
+    // Add Voice Builder attribution
+    const contentWithAttribution = addAttribution(text, platform);
 
-    if (platform === 'twitter') {
-      // Twitter has a share URL
-      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
-      window.open(tweetUrl, '_blank', 'width=550,height=420');
-    } else if (platform === 'linkedin') {
-      // LinkedIn - copy and open compose
-      const linkedinUrl = `https://www.linkedin.com/feed/?shareActive=true`;
-      window.open(linkedinUrl, '_blank');
-      setShareMessage('已复制！请在 LinkedIn 中粘贴发布');
-      setTimeout(() => setShareMessage(null), 3000);
-    } else if (platform === 'wechat') {
-      // WeChat - copy only
-      setShareMessage('已复制！请打开微信朋友圈粘贴发布');
-      setTimeout(() => setShareMessage(null), 3000);
-    } else if (platform === 'xiaohongshu') {
-      // Xiaohongshu - copy only
-      setShareMessage('已复制！请打开小红书 App 粘贴发布');
+    // Copy to clipboard
+    await navigator.clipboard.writeText(contentWithAttribution);
+    analytics.trackTransformShared(platform, platform === 'twitter' ? 'twitter' : 'clipboard');
+
+    // Get platform-specific share URL
+    const { url, message } = getShareUrl(platform, text, { includeAttribution: true });
+
+    if (url) {
+      window.open(url, '_blank', 'width=550,height=420');
+    }
+
+    if (message) {
+      setShareMessage(message);
       setTimeout(() => setShareMessage(null), 3000);
     }
   };
@@ -389,6 +395,7 @@ export function TransformResult({
     // Check rate limit
     const { allowed, remaining } = checkRateLimit('image');
     if (!allowed) {
+      analytics.trackRateLimitHit('image');
       setAnimeError(`今日 AI 配图次数已用完（${DAILY_LIMITS.image}次/天）。明天再来吧！`);
       return;
     }
@@ -411,6 +418,7 @@ export function TransformResult({
         setAnimeError(data.details || data.error);
         if (data.prompt) setAnimePrompt(data.prompt);
       } else if (data.image) {
+        analytics.trackImageGenerated('anime');
         setAnimePrompt(data.prompt);
         setAnimeImage(data.image);
       } else {
@@ -464,6 +472,37 @@ export function TransformResult({
     title: editableTitle || noteData?.title || '',
     points: editablePoints.length > 0 ? editablePoints : noteData?.points || [],
     author: profile?.bio ? `@${profile.bio.slice(0, 20)}` : undefined,
+  };
+
+  // Start a new idea with the generated content
+  const handleStartNewIdea = () => {
+    // Get the current platform's generated content
+    const currentText = platformResults[activePlatform].text;
+    if (!currentText) {
+      onClose();
+      return;
+    }
+
+    // Create new conversation
+    const newConversationId = generateId();
+    const initialMessage = `上次你生成了这个内容，可以作为参考：
+
+---
+${currentText}
+---
+
+有什么新想法想聊聊？`;
+
+    addConversation({
+      id: newConversationId,
+      messages: [{ role: 'assistant', content: initialMessage }],
+      timestamp: Date.now(),
+    });
+
+    // setCurrentConversationId is already called in addConversation, but let's be explicit
+    setCurrentConversationId(newConversationId);
+
+    onClose();
   };
 
   const currentResult = platformResults[activePlatform];
@@ -1029,6 +1068,25 @@ export function TransformResult({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Bottom action buttons */}
+        <div className="flex justify-end gap-3 p-4 border-t bg-[#f4f1ea]">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-[#2a2a2a] text-[#2a2a2a]"
+            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            继续迭代
+          </Button>
+          <Button
+            onClick={handleStartNewIdea}
+            className="bg-[#2a2a2a] text-[#f4f1ea]"
+            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            开始新想法
+          </Button>
+        </div>
       </Card>
     </div>
   );
