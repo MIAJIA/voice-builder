@@ -77,7 +77,7 @@ export function TransformResult({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Streaming transform for active platform
-  const handleStreamingTransform = useCallback(async (platform: Platform, length: OutputLength) => {
+  const handleStreamingTransform = useCallback(async (platform: Platform, length: OutputLength, language: OutputLanguage) => {
     // Check rate limit
     const { allowed } = checkRateLimit('transform');
     if (!allowed) {
@@ -94,14 +94,14 @@ export function TransformResult({
 
     setPlatformResults((prev) => ({
       ...prev,
-      [platform]: { ...prev[platform], isLoading: true, isStreaming: true, length, text: '' },
+      [platform]: { ...prev[platform], isLoading: true, isStreaming: true, length, language, text: '' },
     }));
 
     try {
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, language: platformResults[platform].language, stream: true }),
+        body: JSON.stringify({ content, profile, platform, length, language, stream: true }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -212,7 +212,7 @@ export function TransformResult({
 
   // Auto-load Twitter on mount with streaming
   useEffect(() => {
-    handleStreamingTransform('twitter', 'normal');
+    handleStreamingTransform('twitter', 'normal', 'en');
 
     return () => {
       if (abortControllerRef.current) {
@@ -233,25 +233,27 @@ export function TransformResult({
     setActivePlatform(platform);
     // Auto-load with streaming if not loaded yet
     if (!platformResults[platform].text && !platformResults[platform].isLoading) {
-      handleStreamingTransform(platform, platformResults[platform].length);
+      handleStreamingTransform(platform, platformResults[platform].length, platformResults[platform].language);
     }
   };
 
   const handleLengthChange = (platform: Platform, length: OutputLength) => {
+    const currentLanguage = platformResults[platform].language;
     setPlatformResults((prev) => ({
       ...prev,
       [platform]: { ...prev[platform], length },
     }));
-    handleStreamingTransform(platform, length);
+    handleStreamingTransform(platform, length, currentLanguage);
   };
 
   const handleLanguageChange = (platform: Platform, language: OutputLanguage) => {
+    const currentLength = platformResults[platform].length;
     setPlatformResults((prev) => ({
       ...prev,
       [platform]: { ...prev[platform], language },
     }));
     // Regenerate with new language
-    handleStreamingTransform(platform, platformResults[platform].length);
+    handleStreamingTransform(platform, currentLength, language);
   };
 
   const handleExtractPoints = async () => {
@@ -674,7 +676,7 @@ export function TransformResult({
                     <div className="pt-4 border-t border-[#d4cfc4]">
                       <Button
                         variant="outline"
-                        onClick={() => handleStreamingTransform(activePlatform, currentResult.length)}
+                        onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language)}
                         className="border-[#2a2a2a] text-[#2a2a2a]"
                         style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                       >
@@ -686,7 +688,7 @@ export function TransformResult({
               ) : (
                 <div className="text-center py-8">
                   <Button
-                    onClick={() => handleStreamingTransform(activePlatform, currentResult.length)}
+                    onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language)}
                     className="bg-[#2a2a2a] text-[#f4f1ea]"
                     style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                   >
