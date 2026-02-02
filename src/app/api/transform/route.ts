@@ -4,27 +4,46 @@ import {
   buildPlatformTransformPrompt,
   OutputLength,
   OutputLanguage,
+  Audience,
+  ContentAngle,
 } from '@/lib/prompts';
 
 const client = new Anthropic();
 
 export async function POST(request: Request) {
   try {
+    // Parse request body with error handling for aborted requests
+    let body: {
+      content: string;
+      profile?: Profile;
+      platform?: Platform;
+      length?: OutputLength;
+      language?: OutputLanguage;
+      audience?: Audience;
+      angle?: ContentAngle;
+      stream?: boolean;
+    };
+
+    try {
+      body = await request.json();
+    } catch {
+      // Request was likely aborted or had empty body
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const {
       content,
       profile,
       platform = 'twitter',
       length = 'normal',
       language = 'auto',
+      audience = 'peers',
+      angle = 'sharing',
       stream = false,
-    } = (await request.json()) as {
-      content: string;
-      profile?: Profile;
-      platform?: Platform;
-      length?: OutputLength;
-      language?: OutputLanguage;
-      stream?: boolean;
-    };
+    } = body;
 
     // Get persona for this platform (if exists)
     const persona = profile?.platformPersonas?.[platform] || null;
@@ -34,7 +53,9 @@ export async function POST(request: Request) {
       platform,
       persona,
       length as OutputLength,
-      language as OutputLanguage
+      language as OutputLanguage,
+      audience as Audience,
+      angle as ContentAngle
     );
 
     // Add global profile context if available (for non-custom personas)

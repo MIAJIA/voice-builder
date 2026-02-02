@@ -237,12 +237,54 @@ export const GENERATE_PERSONA_PROMPT = `你是一个帮助用户建立社交媒�
 
 export type OutputLanguage = 'zh' | 'en' | 'auto';
 
+// Audience types
+export type Audience = 'peers' | 'beginners' | 'leadership' | 'friends';
+
+export const AUDIENCE_LABELS: Record<Audience, string> = {
+  peers: '同行',
+  beginners: '小白',
+  leadership: '老板/客户',
+  friends: '朋友',
+};
+
+export const AUDIENCE_DESCRIPTIONS: Record<Audience, string> = {
+  peers: '专业人士、同行，可以用行业术语，聊深度话题',
+  beginners: '新手、外行人，需要用简单易懂的语言解释',
+  leadership: '领导、客户、投资人，强调价值和结果',
+  friends: '朋友、熟人，轻松随意，可以开玩笑',
+};
+
+// Angle/intent types
+export type ContentAngle = 'sharing' | 'asking' | 'opinion' | 'casual' | 'roast' | 'teaching' | 'story';
+
+export const ANGLE_LABELS: Record<ContentAngle, string> = {
+  sharing: '分享经验',
+  asking: '求助讨论',
+  opinion: '观点输出',
+  casual: '随便记录',
+  roast: '搞笑吐槽',
+  teaching: '科普教学',
+  story: '讲个故事',
+};
+
+export const ANGLE_DESCRIPTIONS: Record<ContentAngle, string> = {
+  sharing: '"我发现..." "最近学到..." 分享经验和心得',
+  asking: '"有人遇到过...?" "大家怎么看..." 寻求反馈和讨论',
+  opinion: '"我认为..." "其实..." 输出观点和立场',
+  casual: '轻松记录，不需要太正式，想到什么说什么',
+  roast: '"这届XX不行啊..." "离谱..." 调侃、自嘲、吐槽，带点幽默感',
+  teaching: '"一文讲清..." "其实原理很简单..." 解释概念、科普、教程向',
+  story: '"那天我..." "说个真事..." 个人经历、叙事、有画面感',
+};
+
 // 多平台 Transform prompt
 export function buildPlatformTransformPrompt(
   platform: Platform,
   persona: PlatformPersona | null,
   length: OutputLength = 'normal',
-  language: OutputLanguage = 'auto'
+  language: OutputLanguage = 'auto',
+  audience: Audience = 'peers',
+  angle: ContentAngle = 'sharing'
 ): string {
   const defaults = PLATFORM_DEFAULTS[platform];
   const platformName = PLATFORM_NAMES[platform];
@@ -255,12 +297,16 @@ export function buildPlatformTransformPrompt(
 - 风格: ${persona.styleNotes}`
     : '';
 
+  const conciseLimit = platform === 'twitter' ? '100字/50词以内' : platform === 'xiaohongshu' ? '200字以内' : platform === 'wechat' ? '100字以内' : '200字以内';
+
   const lengthInstructions = {
     concise: `
-## 长度要求：简洁
-- 1 个版本即可
-- 核心观点，精炼表达
-- ${platform === 'twitter' ? '100字以内' : platform === 'xiaohongshu' ? '200字以内' : platform === 'wechat' ? '100字以内' : '200字以内'}`,
+## 长度要求：简洁 ⚠️ 严格限制
+- **只输出 1 个版本**（不要多个版本）
+- **字数限制：${conciseLimit}** ← 这是硬性要求，必须遵守
+- 只保留最核心的一句话或一个观点
+- 删除所有非必要的修饰词、背景说明、例子
+- 像写标题或 slogan 一样精炼`,
     normal: `
 ## 长度要求：正常
 - 提供 2-3 个不同角度的版本，用 --- 分隔
@@ -289,6 +335,16 @@ export function buildPlatformTransformPrompt(
 - Twitter/LinkedIn 默认英文，小红书/朋友圈 默认中文
 - 但如果用户明显想用另一种语言，尊重用户意图`;
 
+  const audienceInstruction = `
+## 目标受众：${AUDIENCE_LABELS[audience]}
+- ${AUDIENCE_DESCRIPTIONS[audience]}
+- 根据受众调整用词、解释深度和表达方式`;
+
+  const angleInstruction = `
+## 内容角度：${ANGLE_LABELS[angle]}
+- ${ANGLE_DESCRIPTIONS[angle]}
+- 用这个角度来组织和呈现内容`;
+
   return `你是一个帮助用户将想法转换为 ${platformName} 内容的助手。
 
 ## 平台特性
@@ -296,6 +352,8 @@ export function buildPlatformTransformPrompt(
 - 风格: ${defaults.style}
 - Emoji: ${defaults.emoji ? '适当使用' : '少用或不用'}
 ${personaSection}
+${audienceInstruction}
+${angleInstruction}
 
 ${lengthInstructions[length]}
 ${languageInstruction}

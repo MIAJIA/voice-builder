@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStore, Platform, DAILY_LIMITS } from '@/lib/store';
-import { PLATFORM_NAMES } from '@/lib/prompts';
+import {
+  PLATFORM_NAMES,
+  Audience,
+  ContentAngle,
+  AUDIENCE_LABELS,
+  ANGLE_LABELS,
+} from '@/lib/prompts';
 import { NoteCardTemplate, NoteCardData } from './NoteCardTemplate';
 import {
   generateImageFromElement,
@@ -28,6 +34,8 @@ interface PlatformResult {
   isStreaming: boolean;
   length: OutputLength;
   language: OutputLanguage;
+  audience: Audience;
+  angle: ContentAngle;
 }
 
 const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
@@ -41,14 +49,15 @@ export function TransformResult({
 
   // Platform results - Twitter/LinkedIn default to English, 小红书/朋友圈 default to Chinese
   const [platformResults, setPlatformResults] = useState<Record<Platform, PlatformResult>>({
-    twitter: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en' },
-    xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh' },
-    wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh' },
-    linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en' },
+    twitter: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en', audience: 'peers', angle: 'sharing' },
+    xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'peers', angle: 'sharing' },
+    wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'friends', angle: 'casual' },
+    linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en', audience: 'peers', angle: 'sharing' },
   });
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter');
   const [copiedText, setCopiedText] = useState(false);
   const [prefetchStarted, setPrefetchStarted] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // Image tab state
   const [noteData, setNoteData] = useState<NoteCardData | null>(null);
@@ -77,7 +86,13 @@ export function TransformResult({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Streaming transform for active platform
-  const handleStreamingTransform = useCallback(async (platform: Platform, length: OutputLength, language: OutputLanguage) => {
+  const handleStreamingTransform = useCallback(async (
+    platform: Platform,
+    length: OutputLength,
+    language: OutputLanguage,
+    audience: Audience,
+    angle: ContentAngle
+  ) => {
     // Check rate limit
     const { allowed } = checkRateLimit('transform');
     if (!allowed) {
@@ -94,14 +109,14 @@ export function TransformResult({
 
     setPlatformResults((prev) => ({
       ...prev,
-      [platform]: { ...prev[platform], isLoading: true, isStreaming: true, length, language, text: '' },
+      [platform]: { ...prev[platform], isLoading: true, isStreaming: true, length, language, audience, angle, text: '' },
     }));
 
     try {
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, language, stream: true }),
+        body: JSON.stringify({ content, profile, platform, length, language, audience, angle, stream: true }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -180,7 +195,13 @@ export function TransformResult({
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, language: platformResults[platform].language, stream: false }),
+        body: JSON.stringify({
+          content, profile, platform, length,
+          language: platformResults[platform].language,
+          audience: platformResults[platform].audience,
+          angle: platformResults[platform].angle,
+          stream: false,
+        }),
       });
       const data = await response.json();
       setPlatformResults((prev) => ({
@@ -212,7 +233,7 @@ export function TransformResult({
 
   // Auto-load Twitter on mount with streaming
   useEffect(() => {
-    handleStreamingTransform('twitter', 'normal', 'en');
+    handleStreamingTransform('twitter', 'normal', 'en', 'peers', 'sharing');
 
     return () => {
       if (abortControllerRef.current) {
@@ -233,27 +254,45 @@ export function TransformResult({
     setActivePlatform(platform);
     // Auto-load with streaming if not loaded yet
     if (!platformResults[platform].text && !platformResults[platform].isLoading) {
-      handleStreamingTransform(platform, platformResults[platform].length, platformResults[platform].language);
+      const { length, language, audience, angle } = platformResults[platform];
+      handleStreamingTransform(platform, length, language, audience, angle);
     }
   };
 
   const handleLengthChange = (platform: Platform, length: OutputLength) => {
-    const currentLanguage = platformResults[platform].language;
+    const { language, audience, angle } = platformResults[platform];
     setPlatformResults((prev) => ({
       ...prev,
       [platform]: { ...prev[platform], length },
     }));
-    handleStreamingTransform(platform, length, currentLanguage);
+    handleStreamingTransform(platform, length, language, audience, angle);
   };
 
   const handleLanguageChange = (platform: Platform, language: OutputLanguage) => {
-    const currentLength = platformResults[platform].length;
+    const { length, audience, angle } = platformResults[platform];
     setPlatformResults((prev) => ({
       ...prev,
       [platform]: { ...prev[platform], language },
     }));
-    // Regenerate with new language
-    handleStreamingTransform(platform, currentLength, language);
+    handleStreamingTransform(platform, length, language, audience, angle);
+  };
+
+  const handleAudienceChange = (platform: Platform, audience: Audience) => {
+    const { length, language, angle } = platformResults[platform];
+    setPlatformResults((prev) => ({
+      ...prev,
+      [platform]: { ...prev[platform], audience },
+    }));
+    handleStreamingTransform(platform, length, language, audience, angle);
+  };
+
+  const handleAngleChange = (platform: Platform, angle: ContentAngle) => {
+    const { length, language, audience } = platformResults[platform];
+    setPlatformResults((prev) => ({
+      ...prev,
+      [platform]: { ...prev[platform], angle },
+    }));
+    handleStreamingTransform(platform, length, language, audience, angle);
   };
 
   const handleExtractPoints = async () => {
@@ -554,42 +593,107 @@ export function TransformResult({
                 </p>
               </div>
 
-              {/* Language selector */}
+              {/* Advanced Settings - Collapsible */}
               <div className="mb-6">
-                <label
-                  className="text-sm text-gray-500 mb-2 block"
+                <button
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                   style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                 >
-                  output_language:
-                </label>
-                <div className="flex gap-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                  <button
-                    onClick={() => handleLanguageChange(activePlatform, 'zh')}
-                    className={`px-4 py-2 border transition-colors ${
-                      currentResult.language === 'zh'
-                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
-                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
-                    }`}
-                  >
-                    中文
-                  </button>
-                  <button
-                    onClick={() => handleLanguageChange(activePlatform, 'en')}
-                    className={`px-4 py-2 border transition-colors ${
-                      currentResult.language === 'en'
-                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
-                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
-                    }`}
-                  >
-                    EN
-                  </button>
-                </div>
-                <p
-                  className="text-xs text-gray-400 mt-2"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                >
-                  {currentResult.language === 'zh' ? '// 输出中文内容' : '// Output in English'}
-                </p>
+                  <span className="text-xs">{showAdvancedSettings ? '▾' : '▸'}</span>
+                  <span>更多设置</span>
+                  {!showAdvancedSettings && (
+                    <span className="text-gray-400">
+                      ({AUDIENCE_LABELS[currentResult.audience]} · {ANGLE_LABELS[currentResult.angle]} · {currentResult.language === 'zh' ? '中文' : 'EN'})
+                    </span>
+                  )}
+                </button>
+
+                {showAdvancedSettings && (
+                  <div className="mt-4 pl-4 border-l-2 border-[#d4cfc4] space-y-4">
+                    {/* Language */}
+                    <div>
+                      <label
+                        className="text-sm text-gray-500 mb-2 block"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        language:
+                      </label>
+                      <div className="flex gap-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        <button
+                          onClick={() => handleLanguageChange(activePlatform, 'zh')}
+                          className={`px-3 py-1.5 text-sm border transition-colors ${
+                            currentResult.language === 'zh'
+                              ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                              : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                          }`}
+                        >
+                          中文
+                        </button>
+                        <button
+                          onClick={() => handleLanguageChange(activePlatform, 'en')}
+                          className={`px-3 py-1.5 text-sm border transition-colors ${
+                            currentResult.language === 'en'
+                              ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                              : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                          }`}
+                        >
+                          EN
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Audience */}
+                    <div>
+                      <label
+                        className="text-sm text-gray-500 mb-2 block"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        audience:
+                      </label>
+                      <div className="flex gap-1 flex-wrap" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        {(['peers', 'beginners', 'leadership', 'friends'] as const).map((aud) => (
+                          <button
+                            key={aud}
+                            onClick={() => handleAudienceChange(activePlatform, aud)}
+                            className={`px-3 py-1.5 text-sm border transition-colors ${
+                              currentResult.audience === aud
+                                ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                            }`}
+                          >
+                            {AUDIENCE_LABELS[aud]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Angle */}
+                    <div>
+                      <label
+                        className="text-sm text-gray-500 mb-2 block"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        angle:
+                      </label>
+                      <div className="flex gap-1 flex-wrap" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        {(['sharing', 'asking', 'opinion', 'casual', 'roast', 'teaching', 'story'] as const).map((ang) => (
+                          <button
+                            key={ang}
+                            onClick={() => handleAngleChange(activePlatform, ang)}
+                            className={`px-3 py-1.5 text-sm border transition-colors ${
+                              currentResult.angle === ang
+                                ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                            }`}
+                          >
+                            {ANGLE_LABELS[ang]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Streaming/Loading state */}
@@ -676,7 +780,7 @@ export function TransformResult({
                     <div className="pt-4 border-t border-[#d4cfc4]">
                       <Button
                         variant="outline"
-                        onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language)}
+                        onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language, currentResult.audience, currentResult.angle)}
                         className="border-[#2a2a2a] text-[#2a2a2a]"
                         style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                       >
@@ -688,7 +792,7 @@ export function TransformResult({
               ) : (
                 <div className="text-center py-8">
                   <Button
-                    onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language)}
+                    onClick={() => handleStreamingTransform(activePlatform, currentResult.length, currentResult.language, currentResult.audience, currentResult.angle)}
                     className="bg-[#2a2a2a] text-[#f4f1ea]"
                     style={{ fontFamily: "'IBM Plex Mono', monospace" }}
                   >
