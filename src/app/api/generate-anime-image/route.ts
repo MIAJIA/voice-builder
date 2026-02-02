@@ -4,26 +4,41 @@ import OpenAI from 'openai';
 const anthropic = new Anthropic();
 const openai = new OpenAI();
 
-const EXTRACT_HIGHLIGHT_PROMPT = `你是一个帮助用户从对话内容中提取核心概念用于生成配图的助手。
+const EXTRACT_HIGHLIGHT_PROMPT = `You create simple illustration prompts in the style of Notion or Slack illustrations.
 
-## 任务
-从用户提供的对话内容中，提取 1-2 个最核心、最有画面感的概念或意象。
+## Style Reference
+Think: Notion's empty state illustrations, Slack's onboarding graphics, Linear's minimal art.
+- Simple stick-figure-like characters (not realistic humans)
+- 2-3 colors maximum
+- Pure white or solid color background
+- One clear action or emotion
+- Geometric, almost childlike simplicity
 
-## 要求
-- 选择最能代表内容核心思想的意象
-- 意象要有视觉表现力，适合生成插画
-- 避免抽象概念，选择具体、有画面感的元素
+## Task
+Extract ONE simple scene from the user's content. Describe it in 15-25 words.
 
-## 输出格式
-返回一个简短的英文图片描述（30-50 words），用于生成动漫/插画风格的配图。
-描述应该包含：
-- 主要视觉元素
-- 情绪/氛围
-- 简单的场景描述
+## Format
+[WHO]: A simple figure (stick person, blob character, or minimal human shape)
+[DOING WHAT]: One clear, simple action
+[WITH WHAT]: 1-2 simple objects maximum
 
-只返回英文描述，不要有其他内容。`;
+## Good Examples
+- "A simple line-art figure sitting cross-legged with a floating lightbulb above their head"
+- "A minimal blob character watering a small plant, single green sprout"
+- "One stick figure standing at a fork in a path, looking at two arrows"
+- "A simple outlined person holding up a giant pencil, ready to write"
 
-const ANIME_STYLE_SUFFIX = `, anime illustration style, soft colors, clean lines, Studio Ghibli inspired aesthetic, warm and inviting atmosphere, digital art`;
+## Bad Examples (NEVER do these)
+- Realistic humans with facial features
+- Complex backgrounds or environments
+- Multiple characters interacting
+- Tech imagery (screens, code, networks)
+- Anything with gradients, shadows, or 3D effects
+
+Output ONLY the simple scene description, nothing else.`;
+
+// Notion/Linear style - extremely minimal
+const ANIME_STYLE_SUFFIX = `. Simple line art illustration, stick figure style, black outlines only, pure white background, no shading, no gradients, no shadows, geometric shapes, minimal detail, like Notion empty state illustrations, single color accent if any, extremely simple and clean`;
 
 export async function POST(request: Request) {
   try {
@@ -70,8 +85,9 @@ export async function POST(request: Request) {
       model: 'dall-e-3',
       prompt: imagePrompt,
       n: 1,
-      size: '1024x1024',
-      quality: 'standard',
+      size: '1024x1024', // Square format works better for minimal illustrations
+      quality: 'standard', // Standard is fine for line art
+      style: 'natural', // Natural style for cleaner, less over-processed look
       response_format: 'b64_json',
     });
 
