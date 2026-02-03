@@ -8,6 +8,7 @@ import { VoiceReminder } from './VoiceReminder';
 import { useStore, Message, DAILY_LIMITS, generateId } from '@/lib/store';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { compressImage } from '@/lib/image-utils';
+import { analytics } from '@/lib/posthog';
 
 interface ChatInterfaceProps {
   initialText?: string;
@@ -39,6 +40,7 @@ export function ChatInterface({
     updateLastAssistantMessage,
     checkRateLimit,
     incrementUsage,
+    getRateLimitRemaining,
   } = useStore();
 
   // Ensure we have a valid conversation
@@ -135,8 +137,19 @@ export function ChatInterface({
     // Check rate limit
     const { allowed, remaining } = checkRateLimit('chat');
     if (!allowed) {
+      analytics.trackRateLimitHit('chat');
       alert(`今日对话次数已用完（${DAILY_LIMITS.chat}次/天）。明天再来吧！`);
       return;
+    }
+
+    // Track chat analytics
+    const isNewChat = !currentConversationId || !currentConversation;
+    if (isNewChat) {
+      analytics.trackChatStarted(!!messageImage);
+    }
+    analytics.trackChatMessage(messages.length + 1, !!messageImage);
+    if (messageImage) {
+      analytics.trackChatImageAttached();
     }
 
     // Increment usage
@@ -244,7 +257,7 @@ export function ChatInterface({
   };
 
   const canSend = (input.trim() || pendingImage) && !isLoading && !isCompressing;
-  const { remaining: chatRemaining } = checkRateLimit('chat');
+  const chatRemaining = getRateLimitRemaining('chat');
 
   return (
     <div className="flex flex-col h-full">

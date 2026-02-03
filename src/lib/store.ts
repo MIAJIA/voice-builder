@@ -81,6 +81,7 @@ interface Store {
   addMessageToCurrentConversation: (message: Message) => void;
   updateLastAssistantMessage: (content: string) => void;
   // Rate limiting
+  getRateLimitRemaining: (type: 'chat' | 'transform' | 'image') => number; // Pure getter, safe during render
   checkRateLimit: (type: 'chat' | 'transform' | 'image') => { allowed: boolean; remaining: number };
   incrementUsage: (type: 'chat' | 'transform' | 'image') => void;
 }
@@ -182,7 +183,22 @@ export const useStore = create<Store>()(
           };
         }),
 
-      // Rate limiting
+      // Rate limiting - pure getter, safe to call during render
+      getRateLimitRemaining: (type) => {
+        const state = get();
+        const today = new Date().toISOString().split('T')[0];
+
+        // If it's a new day, return full limit (don't reset here to avoid setState during render)
+        if (state.rateLimit.date !== today) {
+          return DAILY_LIMITS[type];
+        }
+
+        const countKey = `${type}Count` as keyof Omit<RateLimitState, 'date'>;
+        const currentCount = state.rateLimit[countKey];
+        return Math.max(0, DAILY_LIMITS[type] - currentCount);
+      },
+
+      // Rate limiting - may trigger state reset, only call in event handlers
       checkRateLimit: (type) => {
         const state = get();
         const today = new Date().toISOString().split('T')[0];
