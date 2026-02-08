@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useStore, Profile } from '@/lib/store';
+import { analytics } from '@/lib/posthog';
 
 type OnboardingStep = 0 | 1 | 2 | 3;
 
@@ -27,6 +28,8 @@ export default function OnboardingPage() {
 
   const handleNext = () => {
     if (step < 3) {
+      const stepNames = ['welcome', 'bio', 'tone', 'interests'];
+      analytics.trackOnboardingStep(step, stepNames[step]);
       setStep((step + 1) as OnboardingStep);
     }
   };
@@ -58,11 +61,13 @@ export default function OnboardingPage() {
       interests,
     });
     setOnboardingCompleted(true);
+    analytics.trackOnboardingCompleted();
     router.push('/');
   };
 
   const handleSkip = () => {
     setOnboardingCompleted(true);
+    analytics.trackOnboardingSkipped(step);
     router.push('/');
   };
 
