@@ -355,15 +355,16 @@ describe('video platform in buildPlatformTransformPrompt', () => {
 });
 
 describe('buildVideoTransformPrompt', () => {
-  it('should include 拍摄建议 and 口播大纲', () => {
+  it('should include 录屏流程 and 口播大纲', () => {
     const prompt = buildVideoTransformPrompt(null, null);
-    expect(prompt).toContain('拍摄建议');
+    expect(prompt).toContain('录屏流程');
     expect(prompt).toContain('口播大纲');
   });
 
-  it('should include 低成本 guidelines', () => {
+  it('should include screen recording format', () => {
     const prompt = buildVideoTransformPrompt(null, null);
-    expect(prompt).toContain('低成本');
+    expect(prompt).toContain('录屏模式');
+    expect(prompt).toContain('屏幕录制');
   });
 
   it('should not include research context when null', () => {

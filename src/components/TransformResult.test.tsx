@@ -26,6 +26,7 @@ vi.mock('@/lib/prompts', () => ({
     xiaohongshu: '小红书',
     wechat: '朋友圈',
     linkedin: 'LinkedIn',
+    video: '视频口播',
   },
   AUDIENCE_LABELS: {
     peers: '同行',
