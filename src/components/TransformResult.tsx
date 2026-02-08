@@ -340,6 +340,7 @@ export function TransformResult({
 
   const handleVideoTransform = (researchContext: string | null) => {
     setVideoStep('result');
+    const { length, language, audience, angle } = platformResults.video;
     // Call streaming transform with researchContext injected via fetch body
     const { allowed } = checkRateLimit('transform');
     if (!allowed) {
@@ -348,7 +349,7 @@ export function TransformResult({
       return;
     }
     incrementUsage('transform');
-    analytics.trackTransformStarted('video', { angle: 'story', audience: 'peers' });
+    analytics.trackTransformStarted('video', { angle, audience });
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -367,7 +368,7 @@ export function TransformResult({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             content, profile, platform: 'video',
-            length: 'normal', language: 'zh', audience: 'peers', angle: 'story',
+            length, language, audience, angle,
             stream: true,
             researchContext,
           }),
@@ -390,7 +391,7 @@ export function TransformResult({
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data === '[DONE]') {
-                analytics.trackTransformCompleted('video', { angle: 'story', audience: 'peers', length: 'normal' });
+                analytics.trackTransformCompleted('video', { angle, audience, length });
                 setPlatformResults((prev) => ({
                   ...prev,
                   video: { ...prev.video, isLoading: false, isStreaming: false },
@@ -800,6 +801,111 @@ ${currentText}
                           // V1 基于 AI 知识推荐结构，后续将支持分析博主真实内容
                         </p>
 
+                        {/* Video settings: length, language, audience, angle */}
+                        <div className="space-y-3 pt-2 border-t border-[#d4cfc4]">
+                          <div className="flex flex-wrap gap-x-6 gap-y-3">
+                            {/* Length */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                详细程度
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['concise', 'normal', 'detailed'] as const).map((len) => (
+                                  <button
+                                    key={len}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, length: len },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.length === len
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {len === 'concise' ? '简洁' : len === 'normal' ? '正常' : '详细'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Language */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                语言
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['zh', 'en'] as const).map((lang) => (
+                                  <button
+                                    key={lang}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, language: lang },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.language === lang
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {lang === 'zh' ? '中文' : 'EN'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Audience */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                受众
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['peers', 'beginners', 'leadership', 'friends'] as const).map((aud) => (
+                                  <button
+                                    key={aud}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, audience: aud },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.audience === aud
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {AUDIENCE_LABELS[aud]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Angle */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                角度
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['sharing', 'asking', 'opinion', 'casual', 'story'] as const).map((ang) => (
+                                  <button
+                                    key={ang}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, angle: ang },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.angle === ang
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {ANGLE_LABELS[ang]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Action buttons */}
                         <div className="flex gap-3 pt-2">
                           <Button
@@ -821,18 +927,26 @@ ${currentText}
                       </>
                     ) : (
                       /* Compact summary when step 1 is done */
-                      <div
-                        className="flex flex-wrap gap-2 text-sm text-gray-500"
-                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                      >
-                        {selectedCreators.length > 0
-                          ? selectedCreators.map((c) => (
-                              <span key={c.name} className="px-2 py-1 bg-[#f4f1ea] border border-[#d4cfc4] rounded-full text-xs">
-                                @{c.name} {c.platform}
-                              </span>
-                            ))
-                          : <span className="text-xs text-gray-400">// 未选择博主</span>
-                        }
+                      <div className="space-y-2">
+                        <div
+                          className="flex flex-wrap gap-2 text-sm text-gray-500"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        >
+                          {selectedCreators.length > 0
+                            ? selectedCreators.map((c) => (
+                                <span key={c.name} className="px-2 py-1 bg-[#f4f1ea] border border-[#d4cfc4] rounded-full text-xs">
+                                  @{c.name} {c.platform}
+                                </span>
+                              ))
+                            : <span className="text-xs text-gray-400">// 未选择博主</span>
+                          }
+                        </div>
+                        <div
+                          className="text-xs text-gray-400"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        >
+                          {currentResult.length === 'concise' ? '简洁' : currentResult.length === 'normal' ? '正常' : '详细'} · {currentResult.language === 'zh' ? '中文' : 'EN'} · {AUDIENCE_LABELS[currentResult.audience]} · {ANGLE_LABELS[currentResult.angle]}
+                        </div>
                       </div>
                     )}
                   </div>

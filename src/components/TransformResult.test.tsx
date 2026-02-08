@@ -89,6 +89,8 @@ describe('TransformResult', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset global.fetch with a fresh streaming mock to prevent call count leaking between tests
+    global.fetch = createMockFetch(['default content']);
     mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 50 });
   });
 
@@ -452,12 +454,12 @@ describe('TransformResult', () => {
     });
 
     it('should switch angle from sharing to opinion', async () => {
-      const fetchMock = createMockFetch(['Content', 'Opinion Content']);
+      const fetchMock = createMockFetch(['Content', 'Opinion Content', 'extra', 'extra', 'extra', 'extra']);
       global.fetch = fetchMock;
 
       render(<TransformResult {...defaultProps} />);
 
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
       // Expand advanced settings first
       const advancedToggle = screen.getByRole('button', { name: /更多设置/ });
@@ -467,28 +469,49 @@ describe('TransformResult', () => {
       const opinionButton = screen.getByRole('button', { name: '观点输出' });
       fireEvent.click(opinionButton);
 
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      // Wait for a twitter call with angle=opinion (filter by platform, not total count)
+      await waitFor(() => {
+        const opinionCalls = fetchMock.mock.calls.filter((call: [string, { body: string }]) => {
+          const body = JSON.parse(call[1].body);
+          return body.platform === 'twitter' && body.angle === 'opinion' && body.stream === true;
+        });
+        return expect(opinionCalls.length).toBeGreaterThanOrEqual(1);
+      });
 
-      const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
-      expect(secondCallBody.angle).toBe('opinion');
+      const opinionCalls = fetchMock.mock.calls.filter((call: [string, { body: string }]) => {
+        const body = JSON.parse(call[1].body);
+        return body.platform === 'twitter' && body.angle === 'opinion' && body.stream === true;
+      });
+      expect(JSON.parse(opinionCalls[0][1].body).angle).toBe('opinion');
     });
 
     it('should default 朋友圈 to friends audience and casual angle', async () => {
-      const fetchMock = createMockFetch(['Twitter', 'Wechat']);
+      const fetchMock = createMockFetch(['Twitter', 'Wechat', 'extra', 'extra', 'extra', 'extra']);
       global.fetch = fetchMock;
 
       render(<TransformResult {...defaultProps} />);
 
       // Wait for Twitter to load
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
       // Switch to 朋友圈
       const wechatTab = screen.getByRole('button', { name: /朋友圈/ });
       fireEvent.click(wechatTab);
 
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      // Wait for a wechat streaming call (filter by platform, not total count)
+      await waitFor(() => {
+        const wechatCalls = fetchMock.mock.calls.filter((call: [string, { body: string }]) => {
+          const body = JSON.parse(call[1].body);
+          return body.platform === 'wechat' && body.stream === true;
+        });
+        return expect(wechatCalls.length).toBeGreaterThanOrEqual(1);
+      });
 
-      const wechatCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+      const wechatCalls = fetchMock.mock.calls.filter((call: [string, { body: string }]) => {
+        const body = JSON.parse(call[1].body);
+        return body.platform === 'wechat' && body.stream === true;
+      });
+      const wechatCallBody = JSON.parse(wechatCalls[0][1].body);
       expect(wechatCallBody.audience).toBe('friends');
       expect(wechatCallBody.angle).toBe('casual');
     });
