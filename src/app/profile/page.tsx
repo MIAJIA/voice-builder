@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ProfileForm } from '@/components/ProfileForm';
+import { ReferralWidget } from '@/components/ReferralWidget';
 
 export default function ProfilePage() {
   return (
@@ -29,6 +30,17 @@ export default function ProfilePage() {
         </div>
 
         <ProfileForm />
+
+        {/* Referral section */}
+        <div className="mt-8 pt-8 border-t border-gray-200">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-gray-900">邀请好友</h2>
+            <p className="text-gray-600 text-sm mt-1">
+              邀请朋友使用 Voice Builder，获得奖励
+            </p>
+          </div>
+          <ReferralWidget referralCount={0} />
+        </div>
       </main>
     </div>
   );
