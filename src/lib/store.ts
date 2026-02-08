@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin';
+export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin' | 'video';
+
+export interface FavoriteCreator {
+  name: string;
+  platform: string;  // '小红书' | '抖音' | 'Twitter' | 'B站' | 'YouTube'
+  url?: string;
+}
 
 export interface PlatformPersona {
   platformBio: string;      // "分享产品思考的创业者"
@@ -15,12 +21,14 @@ export interface Profile {
   tone: 'casual' | 'professional' | 'humorous';
   avoidWords: string[];
   interests: string[];
+  favoriteCreators?: FavoriteCreator[];
   // 平台人设
   platformPersonas?: {
     twitter?: PlatformPersona;
     xiaohongshu?: PlatformPersona;
     wechat?: PlatformPersona;
     linkedin?: PlatformPersona;
+    video?: PlatformPersona;
   };
 }
 

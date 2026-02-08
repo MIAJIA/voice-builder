@@ -40,7 +40,7 @@ interface PlatformResult {
   angle: ContentAngle;
 }
 
-const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
+const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin', 'video'];
 
 export function TransformResult({
   content,
@@ -55,6 +55,7 @@ export function TransformResult({
     xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'peers', angle: 'sharing' },
     wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'friends', angle: 'casual' },
     linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en', audience: 'peers', angle: 'sharing' },
+    video: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'peers', angle: 'story' },
   });
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter');
   const [copiedText, setCopiedText] = useState(false);
@@ -506,7 +507,7 @@ ${currentText}
   };
 
   const currentResult = platformResults[activePlatform];
-  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin'].includes(activePlatform);
+  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin', 'video'].includes(activePlatform);
   const versions = currentResult.text
     ? isLongFormPlatform
       ? [currentResult.text.trim()]
@@ -538,12 +539,12 @@ ${currentText}
             >
               // TRANSFORM OUTPUT
             </h2>
-            {loadedCount < 4 && (
+            {loadedCount < platforms.length && (
               <span
                 className="text-xs text-gray-400"
                 style={{ fontFamily: "'IBM Plex Mono', monospace" }}
               >
-                ({loadedCount}/4 platforms)
+                ({loadedCount}/{platforms.length} platforms)
               </span>
             )}
           </div>
@@ -815,6 +816,7 @@ ${currentText}
                           {activePlatform === 'twitter' ? '发布到 Twitter →' :
                            activePlatform === 'linkedin' ? '发布到 LinkedIn →' :
                            activePlatform === 'wechat' ? '复制到朋友圈 →' :
+                           activePlatform === 'video' ? '复制口播大纲 →' :
                            '复制到小红书 →'}
                         </Button>
                       </div>

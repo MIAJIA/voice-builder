@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPlatformTransformPrompt,
+  buildVideoTransformPrompt,
   buildCoThinkSystemPrompt,
   PLATFORM_NAMES,
   PLATFORM_DEFAULTS,
@@ -317,6 +318,86 @@ describe('buildPlatformTransformPrompt', () => {
   });
 });
 
+describe('video platform in buildPlatformTransformPrompt', () => {
+  it('should have video platform name as 视频口播', () => {
+    expect(PLATFORM_NAMES.video).toBe('视频口播');
+  });
+
+  it('should have video platform tone and style', () => {
+    expect(PLATFORM_DEFAULTS.video.tone).toBeDefined();
+    expect(PLATFORM_DEFAULTS.video.style).toBeDefined();
+  });
+
+  it('should include 30秒以内 in video concise mode', () => {
+    const prompt = buildPlatformTransformPrompt('video', null, 'concise');
+    expect(prompt).toContain('30秒以内');
+  });
+
+  it('should be single version in video normal mode', () => {
+    const prompt = buildPlatformTransformPrompt('video', null, 'normal');
+    expect(prompt).not.toContain('2-3 个不同角度的版本');
+    expect(prompt).toContain('只输出 1 个完整版本');
+  });
+
+  it('should be single version in video detailed mode', () => {
+    const prompt = buildPlatformTransformPrompt('video', null, 'detailed');
+    expect(prompt).not.toContain('2-3 个不同角度的版本');
+    expect(prompt).toContain('只输出 1 个完整版本');
+  });
+
+  it('should correctly combine video + normal + zh + peers + story', () => {
+    const prompt = buildPlatformTransformPrompt('video', null, 'normal', 'zh', 'peers', 'story');
+    expect(prompt).toContain('视频口播');
+    expect(prompt).toContain('必须用中文输出');
+    expect(prompt).toContain(AUDIENCE_LABELS.peers);
+    expect(prompt).toContain(ANGLE_LABELS.story);
+  });
+});
+
+describe('buildVideoTransformPrompt', () => {
+  it('should include 拍摄建议 and 口播大纲', () => {
+    const prompt = buildVideoTransformPrompt(null, null);
+    expect(prompt).toContain('拍摄建议');
+    expect(prompt).toContain('口播大纲');
+  });
+
+  it('should include 低成本 guidelines', () => {
+    const prompt = buildVideoTransformPrompt(null, null);
+    expect(prompt).toContain('低成本');
+  });
+
+  it('should not include research context when null', () => {
+    const prompt = buildVideoTransformPrompt(null, null);
+    expect(prompt).not.toContain('同类爆款调研');
+  });
+
+  it('should include research context when provided', () => {
+    const prompt = buildVideoTransformPrompt(null, '推荐使用反转结构，因为...');
+    expect(prompt).toContain('同类爆款调研');
+    expect(prompt).toContain('推荐使用反转结构');
+  });
+
+  it('should include persona when isCustom is true', () => {
+    const prompt = buildVideoTransformPrompt(
+      { platformBio: 'Video persona', tone: 'casual vlog', styleNotes: 'Walk and talk', isCustom: true },
+      null
+    );
+    expect(prompt).toContain('用户人设（优先级最高）');
+    expect(prompt).toContain('Video persona');
+  });
+
+  it('should include audience and angle instructions', () => {
+    const prompt = buildVideoTransformPrompt(null, null, 'zh', 'beginners', 'teaching');
+    expect(prompt).toContain(AUDIENCE_LABELS.beginners);
+    expect(prompt).toContain(ANGLE_LABELS.teaching);
+  });
+
+  it('should end with 用户内容 placeholder', () => {
+    const prompt = buildVideoTransformPrompt(null, null);
+    expect(prompt.trim()).toMatch(/用户内容\s*$/);
+  });
+});
+
 describe('buildCoThinkSystemPrompt', () => {
   it('should include interviewer role description', () => {
     const prompt = buildCoThinkSystemPrompt(null);
@@ -366,6 +447,7 @@ describe('Constants validation', () => {
     expect(PLATFORM_NAMES.xiaohongshu).toBe('小红书');
     expect(PLATFORM_NAMES.wechat).toBe('朋友圈');
     expect(PLATFORM_NAMES.linkedin).toBe('LinkedIn');
+    expect(PLATFORM_NAMES.video).toBe('视频口播');
   });
 
   it('should have all audience labels defined', () => {

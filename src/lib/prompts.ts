@@ -155,6 +155,7 @@ export const PLATFORM_NAMES: Record<Platform, string> = {
   xiaohongshu: '小红书',
   wechat: '朋友圈',
   linkedin: 'LinkedIn',
+  video: '视频口播',
 };
 
 // 平台默认特性
@@ -188,6 +189,12 @@ export const PLATFORM_DEFAULTS: Record<Platform, {
     length: '500-1000字',
     emoji: false,
   },
+  video: {
+    tone: '自然口语、有节奏感、像跟朋友说话',
+    style: '结构化大纲、标注时长、包含拍摄建议',
+    length: '1-3分钟口播（200-500字大纲）',
+    emoji: false,
+  },
 };
 
 // 人设生成对话的问题
@@ -211,6 +218,11 @@ export const PERSONA_QUESTIONS: Record<Platform, string[]> = {
     '你在 LinkedIn 上想建立什么样的职业形象？',
     '你的目标受众是谁？（同行、潜在客户、招聘者...）',
     '有没有你特别喜欢或讨厌的 LinkedIn 内容风格？',
+  ],
+  video: [
+    '你拍视频时想给观众什么印象？（比如：专业、接地气、有趣、真诚...）',
+    '你的视频主要在哪个平台发？目标观众是谁？',
+    '有没有你特别喜欢的视频风格？（比如：边走边聊、坐着聊、配画面...）',
   ],
 };
 
@@ -297,9 +309,13 @@ export function buildPlatformTransformPrompt(
 - 风格: ${persona.styleNotes}`
     : '';
 
-  const conciseLimit = platform === 'twitter' ? '100字/50词以内' : platform === 'xiaohongshu' ? '200字以内' : platform === 'wechat' ? '100字以内' : '200字以内';
+  const conciseLimit = platform === 'twitter' ? '100字/50词以内'
+    : platform === 'xiaohongshu' ? '200字以内'
+    : platform === 'wechat' ? '100字以内'
+    : platform === 'video' ? '30秒以内的核心一句话'
+    : '200字以内';
 
-  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin'].includes(platform);
+  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin', 'video'].includes(platform);
 
   const lengthInstructions = {
     concise: `
@@ -376,6 +392,105 @@ ${languageInstruction}
 - 直接输出内容，不需要额外解释
 - 保持用户的原有观点和风格
 - 符合 ${platformName} 的阅读习惯
+
+## 用户内容
+`;
+}
+
+// ==================== 视频口播专用 Prompt ====================
+
+export function buildVideoTransformPrompt(
+  persona: PlatformPersona | null,
+  researchContext: string | null,
+  language: OutputLanguage = 'zh',
+  audience: Audience = 'peers',
+  angle: ContentAngle = 'sharing'
+): string {
+  const personaSection = persona?.isCustom
+    ? `
+## 用户人设（优先级最高）
+- 定位: ${persona.platformBio}
+- 语气: ${persona.tone}
+- 风格: ${persona.styleNotes}`
+    : '';
+
+  const researchSection = researchContext
+    ? `
+## 同类爆款调研
+${researchContext}
+
+请参考以上调研结果选择最合适的结构。`
+    : '';
+
+  const languageInstruction = language === 'en'
+    ? '用英文输出所有内容。'
+    : language === 'zh'
+    ? '用中文输出所有内容。'
+    : '根据用户输入语言自动选择输出语言。';
+
+  const audienceInstruction = `
+## 目标受众：${AUDIENCE_LABELS[audience]}
+- ${AUDIENCE_DESCRIPTIONS[audience]}`;
+
+  const angleInstruction = `
+## 内容角度：${ANGLE_LABELS[angle]}
+- ${ANGLE_DESCRIPTIONS[angle]}`;
+
+  return `你是一个帮助用户将想法转换为短视频口播方案的助手。
+
+## 你的任务
+将用户提供的内容转换为一个完整的口播方案，包含：
+1. 拍摄建议（场景、机位、素材清单）
+2. 口播大纲（带时长标注的提词大纲，不是逐字脚本）
+
+## 关键原则
+- 低成本：所有建议都能用手机 + 日常场景完成
+- 自然感：大纲是提词级别，不是念稿
+- 节奏感：标注停顿、语速变化、情绪转折
+- 故事结构：根据内容特点动态选择最合适的结构，不套模板
+
+## 可选的故事结构（参考，不限于此）
+- 反常识开头 → 个人故事 → 反转
+- 直接展示结果 → 倒叙过程 → 复盘
+- 提出问题 → 尝试 → 发现
+- 两种对比 → 个人体验 → 观点
+（根据内容特点选择最合适的，也可以自创结构）
+${personaSection}
+${audienceInstruction}
+${angleInstruction}
+${researchSection}
+
+## 语言
+${languageInstruction}
+
+## 输出格式（严格遵守）
+
+📱 拍摄建议
+- 场景：[具体场景建议]
+- 机位：[手机拍摄建议]
+- 光线：[简单光线建议]
+- 素材清单：
+  □ [需要准备的素材1]
+  □ [需要准备的素材2]
+
+🎬 口播大纲（预估 X 分钟）
+
+🎯 Hook [Xs]
+[开场话术/关键词 + 表情/动作建议]
+
+📍 [段落名称] [Xs]
+[大纲要点]
+→ [表演/素材提示]
+
+💡 核心观点 [Xs]
+[一句话总结 + 语速/情绪建议]
+
+👋 收尾 [Xs]
+[结束方式 + CTA]
+
+## 重要
+- 只输出 1 个完整版本（不要用 --- 分隔出多个版本）
+- 直接输出内容，不需要额外解释
 
 ## 用户内容
 `;
