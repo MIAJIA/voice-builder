@@ -506,7 +506,12 @@ ${currentText}
   };
 
   const currentResult = platformResults[activePlatform];
-  const versions = currentResult.text?.split('---').map((t) => t.trim()).filter(Boolean) || [];
+  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin'].includes(activePlatform);
+  const versions = currentResult.text
+    ? isLongFormPlatform
+      ? [currentResult.text.trim()]
+      : currentResult.text.split('---').map((t) => t.trim()).filter(Boolean)
+    : [];
 
   const getLengthDescription = (platform: Platform, length: OutputLength) => {
     if (length === 'concise') {

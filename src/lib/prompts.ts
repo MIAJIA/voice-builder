@@ -299,6 +299,8 @@ export function buildPlatformTransformPrompt(
 
   const conciseLimit = platform === 'twitter' ? '100字/50词以内' : platform === 'xiaohongshu' ? '200字以内' : platform === 'wechat' ? '100字以内' : '200字以内';
 
+  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin'].includes(platform);
+
   const lengthInstructions = {
     concise: `
 ## 长度要求：简洁 ⚠️ 严格限制
@@ -307,11 +309,23 @@ export function buildPlatformTransformPrompt(
 - 只保留最核心的一句话或一个观点
 - 删除所有非必要的修饰词、背景说明、例子
 - 像写标题或 slogan 一样精炼`,
-    normal: `
+    normal: isLongFormPlatform
+      ? `
+## 长度要求：正常
+- **只输出 1 个完整版本**（不要用 --- 分隔出多个版本）
+- ${defaults.length}
+- 内容完整、层次分明、可以直接发布`
+      : `
 ## 长度要求：正常
 - 提供 2-3 个不同角度的版本，用 --- 分隔
 - ${defaults.length}`,
-    detailed: `
+    detailed: isLongFormPlatform
+      ? `
+## 长度要求：详细
+- **只输出 1 个完整版本**（不要用 --- 分隔出多个版本）
+- 充分展开，分段清晰，层次分明
+- ${platform === 'linkedin' ? '1000-1500字' : '800-1200字'}`
+      : `
 ## 长度要求：详细
 - 提供 2-3 个不同角度的版本，用 --- 分隔
 - 充分展开，可以是系列/thread形式
