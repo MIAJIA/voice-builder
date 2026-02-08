@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChatInterface } from '@/components/ChatInterface';
 import { TransformResult } from '@/components/TransformResult';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { useStore } from '@/lib/store';
 
 export default function Home() {
@@ -64,6 +65,9 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* Feedback widget */}
+      <FeedbackWidget page="home" />
     </div>
   );
 }
