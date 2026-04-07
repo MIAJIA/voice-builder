@@ -52,7 +52,7 @@ export const EVENTS = {
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
 
 // Platform types for analytics
-export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin';
+export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin' | 'video';
 export type ContentAngle =
   | 'sharing'
   | 'asking'

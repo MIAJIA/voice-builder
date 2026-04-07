@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useStore, Profile, Platform, PlatformPersona } from '@/lib/store';
+import { useStore, Profile, Platform, PlatformPersona, FavoriteCreator } from '@/lib/store';
 import { PLATFORM_NAMES, PLATFORM_DEFAULTS } from '@/lib/prompts';
 import { PersonaSetupDialog } from './PersonaSetupDialog';
 
@@ -32,6 +32,11 @@ export function ProfileForm() {
   const [platformPersonas, setPlatformPersonas] = useState<Profile['platformPersonas']>(
     profile?.platformPersonas || {}
   );
+  const [creatorsInput, setCreatorsInput] = useState('');
+  const [creatorPlatform, setCreatorPlatform] = useState('小红书');
+  const [favoriteCreators, setFavoriteCreators] = useState<FavoriteCreator[]>(
+    profile?.favoriteCreators || []
+  );
   const [setupPlatform, setSetupPlatform] = useState<Platform | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -41,6 +46,7 @@ export function ProfileForm() {
       setTone(profile.tone);
       setAvoidWords(profile.avoidWords);
       setInterests(profile.interests);
+      setFavoriteCreators(profile.favoriteCreators || []);
       setPlatformPersonas(profile.platformPersonas || {});
     }
   }, [profile]);
@@ -69,12 +75,25 @@ export function ProfileForm() {
     setInterests(interests.filter((i) => i !== interest));
   };
 
+  const handleAddCreator = () => {
+    const name = creatorsInput.trim();
+    if (name && !favoriteCreators.some(c => c.name === name)) {
+      setFavoriteCreators([...favoriteCreators, { name, platform: creatorPlatform }]);
+      setCreatorsInput('');
+    }
+  };
+
+  const handleRemoveCreator = (name: string) => {
+    setFavoriteCreators(favoriteCreators.filter(c => c.name !== name));
+  };
+
   const handleSave = () => {
     setProfile({
       bio,
       tone,
       avoidWords,
       interests,
+      favoriteCreators,
       platformPersonas,
     });
     setSaved(true);
@@ -91,6 +110,7 @@ export function ProfileForm() {
       tone,
       avoidWords,
       interests,
+      favoriteCreators,
       platformPersonas: newPersonas,
     });
     setSaved(true);
@@ -103,7 +123,7 @@ export function ProfileForm() {
     setPlatformPersonas(newPersonas);
   };
 
-  const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
+  const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin', 'video'];
 
   const handleKeyDown = (
     e: React.KeyboardEvent,
@@ -226,6 +246,52 @@ export function ProfileForm() {
             </Badge>
           ))}
           {interests.length === 0 && (
+            <span className="text-sm text-gray-400">暂无</span>
+          )}
+        </div>
+      </Card>
+
+      {/* Favorite Creators */}
+      <Card className="p-6">
+        <h3 className="font-medium mb-3">喜欢的创作者</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          添加你喜欢的博主，生成视频口播时会参考他们的风格
+        </p>
+        <div className="flex gap-2 mb-3">
+          <Input
+            value={creatorsInput}
+            onChange={(e) => setCreatorsInput(e.target.value)}
+            onKeyDown={(e) => handleKeyDown(e, handleAddCreator)}
+            placeholder="输入博主名称，按回车添加"
+            className="flex-1"
+          />
+          <select
+            value={creatorPlatform}
+            onChange={(e) => setCreatorPlatform(e.target.value)}
+            className="px-3 py-2 border rounded-md text-sm bg-white"
+          >
+            <option value="小红书">小红书</option>
+            <option value="抖音">抖音</option>
+            <option value="Twitter">Twitter</option>
+            <option value="B站">B站</option>
+            <option value="YouTube">YouTube</option>
+          </select>
+          <Button variant="outline" onClick={handleAddCreator}>
+            添加
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {favoriteCreators.map((creator) => (
+            <Badge
+              key={creator.name}
+              variant="secondary"
+              className="cursor-pointer hover:bg-red-100"
+              onClick={() => handleRemoveCreator(creator.name)}
+            >
+              @{creator.name} <span className="text-gray-400 ml-1">{creator.platform}</span> ×
+            </Badge>
+          ))}
+          {favoriteCreators.length === 0 && (
             <span className="text-sm text-gray-400">暂无</span>
           )}
         </div>

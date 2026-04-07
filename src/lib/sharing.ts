@@ -33,6 +33,8 @@ export function addAttribution(content: string, platform: Platform): string {
       return content + '\n\n— 用 Voice Builder 生成';
     case 'wechat':
       return content + '\n\n— Voice Builder 帮你说清楚';
+    case 'video':
+      return content;  // 视频大纲不加 attribution
     default:
       return content + VOICE_BUILDER_TAG;
   }
@@ -102,6 +104,13 @@ export function getShareUrl(
       return {
         url: '',
         message: '已复制！请打开微信朋友圈粘贴发布',
+      };
+    }
+
+    case 'video': {
+      return {
+        url: '',
+        message: '已复制口播大纲！',
       };
     }
 

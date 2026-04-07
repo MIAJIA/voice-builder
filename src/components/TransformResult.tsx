@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useStore, Platform, DAILY_LIMITS, generateId } from '@/lib/store';
+import { useStore, Platform, FavoriteCreator, DAILY_LIMITS, generateId } from '@/lib/store';
+import type { VideoResearchResult } from '@/app/api/video-research/route';
 import {
   PLATFORM_NAMES,
   Audience,
@@ -40,7 +41,7 @@ interface PlatformResult {
   angle: ContentAngle;
 }
 
-const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin'];
+const platforms: Platform[] = ['twitter', 'xiaohongshu', 'wechat', 'linkedin', 'video'];
 
 export function TransformResult({
   content,
@@ -55,6 +56,7 @@ export function TransformResult({
     xiaohongshu: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'peers', angle: 'sharing' },
     wechat: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'friends', angle: 'casual' },
     linkedin: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'en', audience: 'peers', angle: 'sharing' },
+    video: { text: null, isLoading: false, isStreaming: false, length: 'normal', language: 'zh', audience: 'peers', angle: 'story' },
   });
   const [activePlatform, setActivePlatform] = useState<Platform>('twitter');
   const [copiedText, setCopiedText] = useState(false);
@@ -83,6 +85,16 @@ export function TransformResult({
 
   // Track if we've auto-extracted points for IMAGE tab
   const [hasAutoExtracted, setHasAutoExtracted] = useState(false);
+
+  // Video tab state
+  const [videoResearch, setVideoResearch] = useState<VideoResearchResult | null>(null);
+  const [isResearching, setIsResearching] = useState(false);
+  const [selectedCreators, setSelectedCreators] = useState<FavoriteCreator[]>(
+    profile?.favoriteCreators || []
+  );
+  const [tempCreatorInput, setTempCreatorInput] = useState('');
+  const [tempCreatorPlatform, setTempCreatorPlatform] = useState('小红书');
+  const [videoStep, setVideoStep] = useState<'creators' | 'research' | 'result'>('creators');
 
   const noteCardRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -229,8 +241,8 @@ export function TransformResult({
     if (prefetchStarted) return;
     setPrefetchStarted(true);
 
-    // Prefetch other platforms with a small delay between each
-    const otherPlatforms = platforms.filter((p) => p !== 'twitter');
+    // Prefetch other platforms with a small delay between each (skip video — has its own flow)
+    const otherPlatforms = platforms.filter((p) => p !== 'twitter' && p !== 'video');
     otherPlatforms.forEach((platform, index) => {
       setTimeout(() => {
         handleBackgroundTransform(platform, 'normal');
@@ -259,6 +271,8 @@ export function TransformResult({
 
   const handlePlatformTabChange = (platform: Platform) => {
     setActivePlatform(platform);
+    // Video has its own 3-step flow, don't auto-trigger
+    if (platform === 'video') return;
     // Auto-load with streaming if not loaded yet
     if (!platformResults[platform].text && !platformResults[platform].isLoading) {
       const { length, language, audience, angle } = platformResults[platform];
@@ -300,6 +314,116 @@ export function TransformResult({
       [platform]: { ...prev[platform], angle },
     }));
     handleStreamingTransform(platform, length, language, audience, angle);
+  };
+
+  // Video-specific handlers
+  const handleVideoResearch = async () => {
+    setIsResearching(true);
+    setVideoStep('research');
+    try {
+      const response = await fetch('/api/video-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          favoriteCreators: selectedCreators,
+        }),
+      });
+      const data = await response.json();
+      setVideoResearch(data);
+    } catch (error) {
+      console.error('Video research failed:', error);
+    } finally {
+      setIsResearching(false);
+    }
+  };
+
+  const handleVideoTransform = (researchContext: string | null) => {
+    setVideoStep('result');
+    const { length, language, audience, angle } = platformResults.video;
+    // Call streaming transform with researchContext injected via fetch body
+    const { allowed } = checkRateLimit('transform');
+    if (!allowed) {
+      analytics.trackRateLimitHit('transform');
+      alert(`今日转换次数已用完（${DAILY_LIMITS.transform}次/天）。明天再来吧！`);
+      return;
+    }
+    incrementUsage('transform');
+    analytics.trackTransformStarted('video', { angle, audience });
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setPlatformResults((prev) => ({
+      ...prev,
+      video: { ...prev.video, isLoading: true, isStreaming: true, text: '' },
+    }));
+
+    (async () => {
+      try {
+        const response = await fetch('/api/transform', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content, profile, platform: 'video',
+            length, language, audience, angle,
+            stream: true,
+            researchContext,
+          }),
+          signal: abortControllerRef.current!.signal,
+        });
+
+        if (!response.ok) throw new Error('Transform failed');
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No reader');
+
+        const decoder = new TextDecoder();
+        let accumulatedText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                analytics.trackTransformCompleted('video', { angle, audience, length });
+                setPlatformResults((prev) => ({
+                  ...prev,
+                  video: { ...prev.video, isLoading: false, isStreaming: false },
+                }));
+                return;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  setPlatformResults((prev) => ({
+                    ...prev,
+                    video: { ...prev.video, text: accumulatedText },
+                  }));
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        }
+        setPlatformResults((prev) => ({
+          ...prev,
+          video: { ...prev.video, isLoading: false, isStreaming: false },
+        }));
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        console.error('Video streaming transform failed:', error);
+        setPlatformResults((prev) => ({
+          ...prev,
+          video: { ...prev.video, isLoading: false, isStreaming: false },
+        }));
+      }
+    })();
   };
 
   const handleExtractPoints = async () => {
@@ -506,7 +630,7 @@ ${currentText}
   };
 
   const currentResult = platformResults[activePlatform];
-  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin'].includes(activePlatform);
+  const isLongFormPlatform = ['xiaohongshu', 'wechat', 'linkedin', 'video'].includes(activePlatform);
   const versions = currentResult.text
     ? isLongFormPlatform
       ? [currentResult.text.trim()]
@@ -538,12 +662,12 @@ ${currentText}
             >
               // TRANSFORM OUTPUT
             </h2>
-            {loadedCount < 4 && (
+            {loadedCount < platforms.length && (
               <span
                 className="text-xs text-gray-400"
                 style={{ fontFamily: "'IBM Plex Mono', monospace" }}
               >
-                ({loadedCount}/4 platforms)
+                ({loadedCount}/{platforms.length} platforms)
               </span>
             )}
           </div>
@@ -606,6 +730,416 @@ ${currentText}
 
             {/* Platform content */}
             <div className="flex-1 overflow-y-auto p-6">
+              {activePlatform === 'video' ? (
+                /* ===== Video 3-step flow (accumulated) ===== */
+                <div className="space-y-6">
+                  {/* Step 1: Creator selection — always visible */}
+                  <div className="space-y-4">
+                    <h3
+                      className="text-sm text-gray-500"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                    >
+                      step_1: 选择参考博主（可选）
+                    </h3>
+
+                    {videoStep === 'creators' ? (
+                      <>
+                        {/* Selected creators */}
+                        {selectedCreators.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedCreators.map((creator) => (
+                              <button
+                                key={creator.name}
+                                onClick={() => setSelectedCreators(selectedCreators.filter(c => c.name !== creator.name))}
+                                className="px-3 py-1.5 text-sm border border-[#2a2a2a] bg-[#2a2a2a] text-white rounded-full hover:bg-[#444]"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                @{creator.name} <span className="text-gray-300 ml-1">{creator.platform}</span> ×
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Temp add creator */}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={tempCreatorInput}
+                            onChange={(e) => setTempCreatorInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && tempCreatorInput.trim()) {
+                                e.preventDefault();
+                                const name = tempCreatorInput.trim();
+                                if (!selectedCreators.some(c => c.name === name)) {
+                                  setSelectedCreators([...selectedCreators, { name, platform: tempCreatorPlatform }]);
+                                }
+                                setTempCreatorInput('');
+                              }
+                            }}
+                            placeholder="输入博主名称，按回车添加"
+                            className="flex-1 px-3 py-2 text-sm border-2 border-[#d4cfc4] bg-white"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          />
+                          <select
+                            value={tempCreatorPlatform}
+                            onChange={(e) => setTempCreatorPlatform(e.target.value)}
+                            className="px-3 py-2 text-sm border-2 border-[#d4cfc4] bg-white"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          >
+                            <option value="小红书">小红书</option>
+                            <option value="抖音">抖音</option>
+                            <option value="B站">B站</option>
+                            <option value="Twitter">Twitter</option>
+                            <option value="YouTube">YouTube</option>
+                          </select>
+                        </div>
+
+                        <p
+                          className="text-xs text-gray-400"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        >
+                          // V1 基于 AI 知识推荐结构，后续将支持分析博主真实内容
+                        </p>
+
+                        {/* Video settings: length, language, audience, angle */}
+                        <div className="space-y-3 pt-2 border-t border-[#d4cfc4]">
+                          <div className="flex flex-wrap gap-x-6 gap-y-3">
+                            {/* Length */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                详细程度
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['concise', 'normal', 'detailed'] as const).map((len) => (
+                                  <button
+                                    key={len}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, length: len },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.length === len
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {len === 'concise' ? '简洁' : len === 'normal' ? '正常' : '详细'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Language */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                语言
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['zh', 'en'] as const).map((lang) => (
+                                  <button
+                                    key={lang}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, language: lang },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.language === lang
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {lang === 'zh' ? '中文' : 'EN'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Audience */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                受众
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['peers', 'beginners', 'leadership', 'friends'] as const).map((aud) => (
+                                  <button
+                                    key={aud}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, audience: aud },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.audience === aud
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {AUDIENCE_LABELS[aud]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Angle */}
+                            <div>
+                              <label className="text-xs text-gray-400 block mb-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                角度
+                              </label>
+                              <div className="flex gap-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {(['sharing', 'asking', 'opinion', 'casual', 'story'] as const).map((ang) => (
+                                  <button
+                                    key={ang}
+                                    onClick={() => setPlatformResults((prev) => ({
+                                      ...prev,
+                                      video: { ...prev.video, angle: ang },
+                                    }))}
+                                    className={`px-2.5 py-1 text-xs border transition-colors ${
+                                      currentResult.angle === ang
+                                        ? 'bg-[#2a2a2a] text-white border-[#2a2a2a]'
+                                        : 'bg-transparent text-[#2a2a2a] border-[#d4cfc4] hover:border-[#2a2a2a]'
+                                    }`}
+                                  >
+                                    {ANGLE_LABELS[ang]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-3 pt-2">
+                          <Button
+                            onClick={handleVideoResearch}
+                            className="bg-[#2a2a2a] text-[#f4f1ea]"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          >
+                            开始调研
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleVideoTransform(null)}
+                            className="border-[#2a2a2a] text-[#2a2a2a]"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                          >
+                            跳过，直接生成
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      /* Compact summary when step 1 is done */
+                      <div className="space-y-2">
+                        <div
+                          className="flex flex-wrap gap-2 text-sm text-gray-500"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        >
+                          {selectedCreators.length > 0
+                            ? selectedCreators.map((c) => (
+                                <span key={c.name} className="px-2 py-1 bg-[#f4f1ea] border border-[#d4cfc4] rounded-full text-xs">
+                                  @{c.name} {c.platform}
+                                </span>
+                              ))
+                            : <span className="text-xs text-gray-400">// 未选择博主</span>
+                          }
+                        </div>
+                        <div
+                          className="text-xs text-gray-400"
+                          style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                        >
+                          {currentResult.length === 'concise' ? '简洁' : currentResult.length === 'normal' ? '正常' : '详细'} · {currentResult.language === 'zh' ? '中文' : 'EN'} · {AUDIENCE_LABELS[currentResult.audience]} · {ANGLE_LABELS[currentResult.angle]}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Divider between steps */}
+                  {(videoStep === 'research' || videoStep === 'result') && (
+                    <div className="border-t border-[#d4cfc4]" />
+                  )}
+
+                  {/* Step 2: Research results — visible when >= research */}
+                  {(videoStep === 'research' || videoStep === 'result') && (
+                    <div className="space-y-4">
+                      <h3
+                        className="text-sm text-gray-500"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        step_2: 结构调研
+                      </h3>
+
+                      {isResearching ? (
+                        <div className="flex items-center gap-3 py-8">
+                          <div className="animate-spin w-6 h-6 border-2 border-[#2a2a2a] border-t-transparent rounded-full" />
+                          <span className="text-sm text-gray-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                            正在分析适合的口播结构...
+                          </span>
+                        </div>
+                      ) : videoResearch ? (
+                        <div className="space-y-4">
+                          {/* Topic */}
+                          {videoResearch.topic && (
+                            <div
+                              className="p-3 bg-[#f4f1ea] border border-[#d4cfc4] rounded"
+                              style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                            >
+                              <span className="text-xs text-gray-500">topic: </span>
+                              <span className="text-sm">{videoResearch.topic}</span>
+                            </div>
+                          )}
+
+                          {/* Recommended structure */}
+                          <div
+                            className="p-4 bg-[#fffef9] border-2 border-[#d4cfc4]"
+                            style={{ boxShadow: '4px 4px 0 #d4cfc4' }}
+                          >
+                            <div className="text-sm font-medium mb-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                              推荐结构
+                            </div>
+                            <p className="text-[#2a2a2a] font-medium mb-2" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                              {videoResearch.recommendedStructure}
+                            </p>
+                            <p className="text-sm text-gray-600" style={{ lineHeight: 1.6 }}>
+                              {videoResearch.recommendedReason}
+                            </p>
+                          </div>
+
+                          {/* References (if any in future) */}
+                          {videoResearch.references.length > 0 && (
+                            <div className="space-y-3">
+                              <div className="text-sm text-gray-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                参考视频
+                              </div>
+                              {videoResearch.references.map((ref, i) => (
+                                <div key={i} className="p-3 bg-white border border-[#d4cfc4] rounded text-sm">
+                                  <div className="font-medium">@{ref.creator} — {ref.title}</div>
+                                  <div className="text-gray-500 mt-1">Hook: {ref.hookPattern}</div>
+                                  <div className="text-gray-500">结构: {ref.structure}</div>
+                                  {ref.duration && <div className="text-gray-400">时长: {ref.duration}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Generate button — only show if still on step 2 */}
+                          {videoStep === 'research' && (
+                            <div className="flex gap-3 pt-2">
+                              <Button
+                                onClick={() => handleVideoTransform(
+                                  `推荐结构: ${videoResearch.recommendedStructure}\n原因: ${videoResearch.recommendedReason}`
+                                )}
+                                className="bg-[#2a2a2a] text-[#f4f1ea]"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                基于调研生成口播方案
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => setVideoStep('creators')}
+                                className="border-[#d4cfc4] text-gray-500"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                返回
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Divider before step 3 */}
+                  {videoStep === 'result' && (
+                    <div className="border-t border-[#d4cfc4]" />
+                  )}
+
+                  {/* Step 3: Generated result — visible when result */}
+                  {videoStep === 'result' && (
+                    <div className="space-y-4">
+                      <h3
+                        className="text-sm text-gray-500"
+                        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        step_3: 口播方案
+                      </h3>
+
+                      {currentResult.isLoading && !currentResult.text ? (
+                        <div className="flex items-center gap-3 py-8">
+                          <div className="animate-spin w-6 h-6 border-2 border-[#2a2a2a] border-t-transparent rounded-full" />
+                          <span className="text-sm text-gray-500" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                            正在生成口播方案...
+                          </span>
+                        </div>
+                      ) : currentResult.text ? (
+                        <div className="space-y-4">
+                          {currentResult.isStreaming && (
+                            <div
+                              className="flex items-center gap-2 text-sm text-gray-400"
+                              style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                            >
+                              <span className="animate-pulse">●</span> streaming...
+                            </div>
+                          )}
+                          <div
+                            className="p-4 bg-[#fffef9] border-2 border-[#d4cfc4]"
+                            style={{ boxShadow: '4px 4px 0 #d4cfc4' }}
+                          >
+                            <p
+                              className="whitespace-pre-wrap text-[#2a2a2a]"
+                              style={{ fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.8 }}
+                            >
+                              {currentResult.text}
+                            </p>
+                          </div>
+                          {!currentResult.isStreaming && (
+                            <div className="flex gap-2 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCopyText(currentResult.text!)}
+                                className="border-[#2a2a2a] text-[#2a2a2a]"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                {copiedText ? 'COPIED ✓' : 'COPY'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const ctx = videoResearch
+                                    ? `推荐结构: ${videoResearch.recommendedStructure}\n原因: ${videoResearch.recommendedReason}`
+                                    : null;
+                                  handleVideoTransform(ctx);
+                                }}
+                                className="border-[#2a2a2a] text-[#2a2a2a]"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                REGENERATE
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setVideoStep('creators');
+                                  setVideoResearch(null);
+                                  setPlatformResults((prev) => ({
+                                    ...prev,
+                                    video: { ...prev.video, text: null, isLoading: false, isStreaming: false },
+                                  }));
+                                }}
+                                className="border-[#d4cfc4] text-gray-500"
+                                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                              >
+                                重新开始
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ===== Standard platform flow ===== */
+                <>
               {/* Length selector */}
               <div className="mb-6">
                 <label
@@ -843,6 +1377,8 @@ ${currentText}
                     GENERATE FOR {PLATFORM_NAMES[activePlatform].toUpperCase()}
                   </Button>
                 </div>
+              )}
+                </>
               )}
             </div>
           </TabsContent>

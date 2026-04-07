@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Platform, Profile } from '@/lib/store';
 import {
   buildPlatformTransformPrompt,
+  buildVideoTransformPrompt,
   OutputLength,
   OutputLanguage,
   Audience,
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
       audience?: Audience;
       angle?: ContentAngle;
       stream?: boolean;
+      researchContext?: string;
     };
 
     try {
@@ -43,20 +45,32 @@ export async function POST(request: Request) {
       audience = 'peers',
       angle = 'sharing',
       stream = false,
+      researchContext,
     } = body;
 
     // Get persona for this platform (if exists)
     const persona = profile?.platformPersonas?.[platform] || null;
 
     // Build platform-specific prompt
-    let systemPrompt = buildPlatformTransformPrompt(
-      platform,
-      persona,
-      length as OutputLength,
-      language as OutputLanguage,
-      audience as Audience,
-      angle as ContentAngle
-    );
+    let systemPrompt: string;
+    if (platform === 'video') {
+      systemPrompt = buildVideoTransformPrompt(
+        persona,
+        researchContext || null,
+        language as OutputLanguage,
+        audience as Audience,
+        angle as ContentAngle
+      );
+    } else {
+      systemPrompt = buildPlatformTransformPrompt(
+        platform,
+        persona,
+        length as OutputLength,
+        language as OutputLanguage,
+        audience as Audience,
+        angle as ContentAngle
+      );
+    }
 
     // Add global profile context if available (for non-custom personas)
     if (profile && !persona?.isCustom) {
@@ -72,6 +86,7 @@ export async function POST(request: Request) {
       xiaohongshu: { concise: 512, normal: 1024, detailed: 2048 },
       wechat: { concise: 256, normal: 512, detailed: 1024 },
       linkedin: { concise: 512, normal: 1024, detailed: 2048 },
+      video: { concise: 512, normal: 2048, detailed: 4096 },
     };
     const maxTokens = baseTokens[platform]?.[length] || 512;
 
