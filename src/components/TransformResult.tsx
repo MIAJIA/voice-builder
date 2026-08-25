@@ -98,6 +98,8 @@ export function TransformResult({
 
   const noteCardRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const prefetchTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const prefetchAbortControllersRef = useRef(new Set<AbortController>());
 
   // Streaming transform for active platform
   const handleStreamingTransform = useCallback(async (
@@ -210,6 +212,9 @@ export function TransformResult({
       [platform]: { ...prev[platform], isLoading: true, length },
     }));
 
+    const controller = new AbortController();
+    prefetchAbortControllersRef.current.add(controller);
+
     try {
       const response = await fetch('/api/transform', {
         method: 'POST',
@@ -221,18 +226,23 @@ export function TransformResult({
           angle: platformResults[platform].angle,
           stream: false,
         }),
+        signal: controller.signal,
       });
       const data = await response.json();
+      if (controller.signal.aborted) return;
       setPlatformResults((prev) => ({
         ...prev,
         [platform]: { ...prev[platform], text: data.result || null, isLoading: false },
       }));
     } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
       console.error('Background transform failed:', error);
       setPlatformResults((prev) => ({
         ...prev,
         [platform]: { ...prev[platform], isLoading: false },
       }));
+    } finally {
+      prefetchAbortControllersRef.current.delete(controller);
     }
   }, [content, profile, platformResults]);
 
@@ -244,9 +254,10 @@ export function TransformResult({
     // Prefetch other platforms with a small delay between each (skip video — has its own flow)
     const otherPlatforms = platforms.filter((p) => p !== 'twitter' && p !== 'video');
     otherPlatforms.forEach((platform, index) => {
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         handleBackgroundTransform(platform, 'normal');
       }, (index + 1) * 500); // Stagger by 500ms
+      prefetchTimeoutsRef.current.push(timeout);
     });
   }, [prefetchStarted, handleBackgroundTransform]);
 
@@ -258,6 +269,10 @@ export function TransformResult({
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      prefetchTimeoutsRef.current.forEach(clearTimeout);
+      prefetchTimeoutsRef.current = [];
+      prefetchAbortControllersRef.current.forEach((controller) => controller.abort());
+      prefetchAbortControllersRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

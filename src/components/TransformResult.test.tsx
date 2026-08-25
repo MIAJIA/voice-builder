@@ -580,6 +580,47 @@ describe('TransformResult', () => {
     });
   });
 
+  describe('Background Prefetch', () => {
+    it('should abort an in-flight prefetch when unmounted', async () => {
+      let callIndex = 0;
+      let backgroundSignal: AbortSignal | undefined;
+      const fetchMock = vi.fn().mockImplementation(
+        (_url: string, options: RequestInit) => {
+          callIndex += 1;
+          if (callIndex === 1) {
+            return Promise.resolve({
+              ok: true,
+              body: createMockStreamResponse('Content'),
+            });
+          }
+
+          const signal = options.signal as AbortSignal;
+          backgroundSignal = signal;
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true }
+            );
+          });
+        }
+      );
+      global.fetch = fetchMock;
+
+      const { unmount } = render(<TransformResult {...defaultProps} />);
+
+      await waitFor(() => expect(backgroundSignal).toBeDefined(), {
+        timeout: 1500,
+      });
+      const signal = backgroundSignal as AbortSignal;
+      expect(signal.aborted).toBe(false);
+
+      unmount();
+
+      expect(signal.aborted).toBe(true);
+    });
+  });
+
   describe('Platform Switching', () => {
     it('should load platform with its default language when switching tabs', async () => {
       const fetchMock = createMockFetch(['Twitter', 'Xiaohongshu', 'LinkedIn', 'Wechat', 'extra', 'extra', 'extra', 'extra', 'extra']);
