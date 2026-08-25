@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 
 const client = new Anthropic();
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     const { content } = await request.json();
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 512,
       system: EXTRACT_POINTS_PROMPT,
       messages: [

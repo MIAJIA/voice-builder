@@ -6,6 +6,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '../../lib/anthropic-model';
 import type {
   ContentGeneratorConfig,
   WeeklyInputs,
@@ -153,7 +154,7 @@ export class ContentGenerator {
     const prompt = QUOTE_EXTRACTION_PROMPT.replace('{{feedback}}', feedbackText);
 
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -218,7 +219,7 @@ export class ContentGenerator {
       .replace('{{trending}}', trendingText);
 
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -283,7 +284,7 @@ export class ContentGenerator {
       .replace('{{hashtagStyle}}', guidelines.hashtagStyle);
 
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     });

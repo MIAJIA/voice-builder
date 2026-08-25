@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 import { Platform } from '@/lib/store';
 import { GENERATE_PERSONA_PROMPT, PERSONA_QUESTIONS, PLATFORM_NAMES } from '@/lib/prompts';
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
       .join('\n\n');
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 512,
       system: GENERATE_PERSONA_PROMPT,
       messages: [

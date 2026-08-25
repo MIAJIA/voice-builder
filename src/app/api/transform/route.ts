@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 import { Platform, Profile } from '@/lib/store';
 import {
   buildPlatformTransformPrompt,
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
         async start(controller) {
           try {
             const streamResponse = client.messages.stream({
-              model: 'claude-sonnet-4-20250514',
+              model: ANTHROPIC_MODEL,
               max_tokens: maxTokens,
               system: systemPrompt,
               messages: [
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
 
     // Non-streaming mode (for background prefetch)
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [
