@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 
 const anthropic = new Anthropic();
 const openai = new OpenAI();
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
       // Step 1: Extract highlight using Claude
       console.log('[Anime Image] Extracting highlight...');
       const highlightResponse = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 256,
         system: EXTRACT_HIGHLIGHT_PROMPT,
         messages: [{ role: 'user', content }],

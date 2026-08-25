@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 import { Platform, Profile } from '@/lib/store';
 import {
   buildPlatformTransformPrompt,
@@ -98,17 +99,20 @@ export async function POST(request: Request) {
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
-            const streamResponse = client.messages.stream({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: maxTokens,
-              system: systemPrompt,
-              messages: [
-                {
-                  role: 'user',
-                  content: content,
-                },
-              ],
-            });
+            const streamResponse = client.messages.stream(
+              {
+                model: ANTHROPIC_MODEL,
+                max_tokens: maxTokens,
+                system: systemPrompt,
+                messages: [
+                  {
+                    role: 'user',
+                    content: content,
+                  },
+                ],
+              },
+              { signal: request.signal }
+            );
 
             for await (const event of streamResponse) {
               if (isClosed) break;
@@ -148,17 +152,20 @@ export async function POST(request: Request) {
     }
 
     // Non-streaming mode (for background prefetch)
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: content,
-        },
-      ],
-    });
+    const response = await client.messages.create(
+      {
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: content,
+          },
+        ],
+      },
+      { signal: request.signal }
+    );
 
     const text =
       response.content[0].type === 'text' ? response.content[0].text : '';

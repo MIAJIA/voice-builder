@@ -6,6 +6,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '../../lib/anthropic-model';
 import type { SocialPost, LeadAnalysis, Platform, SocialListeningConfig } from './types';
 import { PLATFORM_CONFIGS } from './types';
 
@@ -66,7 +67,7 @@ export class LeadAnalyzer {
       .replace('{{engagement}}', this.formatEngagement(post.engagement));
 
     const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 1024,
       messages: [
         {

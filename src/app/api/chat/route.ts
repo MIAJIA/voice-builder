@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { endsWithUserMessage } from '@/lib/anthropic-messages';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 import { buildCoThinkSystemPrompt } from '@/lib/prompts';
 
 const client = new Anthropic();
@@ -69,6 +71,16 @@ export async function POST(request: Request) {
   try {
     const { messages, profile } = await request.json();
 
+    if (!Array.isArray(messages) || !endsWithUserMessage(messages)) {
+      return new Response(
+        JSON.stringify({ error: 'The final chat message must be from the user' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const systemPrompt = buildCoThinkSystemPrompt(profile);
 
     // Format messages for Anthropic API
@@ -81,7 +93,7 @@ export async function POST(request: Request) {
 
     // Create a streaming response
     const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,

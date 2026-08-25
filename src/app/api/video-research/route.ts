@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
 import type { FavoriteCreator } from '@/lib/store';
 
 const client = new Anthropic();
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     // favoriteCreators reserved for future browser automation integration
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 512,
       system: RECOMMEND_STRUCTURE_PROMPT,
       messages: [{ role: 'user', content }],
