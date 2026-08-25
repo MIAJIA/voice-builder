@@ -41,6 +41,7 @@ export function ChatInterface({
     checkRateLimit,
     incrementUsage,
     getRateLimitRemaining,
+    selectedModel,
   } = useStore();
 
   // Ensure we have a valid conversation
@@ -192,6 +193,7 @@ export function ChatInterface({
         body: JSON.stringify({
           messages: allMessages,
           profile,
+          model: selectedModel,
         }),
         onmessage(event) {
           if (event.data === '[DONE]') {

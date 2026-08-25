@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 import { Platform } from '@/lib/store';
 import { GENERATE_PERSONA_PROMPT, PERSONA_QUESTIONS, PLATFORM_NAMES } from '@/lib/prompts';
 
@@ -7,10 +7,19 @@ const client = new Anthropic();
 
 export async function POST(request: Request) {
   try {
-    const { platform, answers } = await request.json() as {
+    const { platform, answers, model: requestedModel } = await request.json() as {
       platform: Platform;
       answers: string[];
+      model?: unknown;
     };
+
+    const model = resolveAnthropicModel(requestedModel);
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const questions = PERSONA_QUESTIONS[platform];
     const platformName = PLATFORM_NAMES[platform];
@@ -21,7 +30,7 @@ export async function POST(request: Request) {
       .join('\n\n');
 
     const response = await client.messages.create({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: 512,
       system: GENERATE_PERSONA_PROMPT,
       messages: [

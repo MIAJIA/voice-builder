@@ -48,7 +48,14 @@ export function TransformResult({
   images = [],
   onClose,
 }: TransformResultProps) {
-  const { profile, checkRateLimit, incrementUsage, addConversation, setCurrentConversationId } = useStore();
+  const {
+    profile,
+    checkRateLimit,
+    incrementUsage,
+    addConversation,
+    setCurrentConversationId,
+    selectedModel,
+  } = useStore();
 
   // Platform results - Twitter/LinkedIn default to English, 小红书/朋友圈 default to Chinese
   const [platformResults, setPlatformResults] = useState<Record<Platform, PlatformResult>>({
@@ -136,7 +143,17 @@ export function TransformResult({
       const response = await fetch('/api/transform', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, profile, platform, length, language, audience, angle, stream: true }),
+        body: JSON.stringify({
+          content,
+          profile,
+          platform,
+          length,
+          language,
+          audience,
+          angle,
+          stream: true,
+          model: selectedModel,
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -194,7 +211,7 @@ export function TransformResult({
         [platform]: { ...prev[platform], isLoading: false, isStreaming: false },
       }));
     }
-  }, [content, profile]);
+  }, [checkRateLimit, content, incrementUsage, profile, selectedModel]);
 
   // Non-streaming transform for background prefetch
   const handleBackgroundTransform = useCallback(async (platform: Platform, length: OutputLength) => {
@@ -225,6 +242,7 @@ export function TransformResult({
           audience: platformResults[platform].audience,
           angle: platformResults[platform].angle,
           stream: false,
+          model: selectedModel,
         }),
         signal: controller.signal,
       });
@@ -244,7 +262,7 @@ export function TransformResult({
     } finally {
       prefetchAbortControllersRef.current.delete(controller);
     }
-  }, [content, profile, platformResults]);
+  }, [checkRateLimit, content, incrementUsage, platformResults, profile, selectedModel]);
 
   // Background prefetch other platforms
   const startBackgroundPrefetch = useCallback(() => {
@@ -342,6 +360,7 @@ export function TransformResult({
         body: JSON.stringify({
           content,
           favoriteCreators: selectedCreators,
+          model: selectedModel,
         }),
       });
       const data = await response.json();
@@ -386,6 +405,7 @@ export function TransformResult({
             length, language, audience, angle,
             stream: true,
             researchContext,
+            model: selectedModel,
           }),
           signal: abortControllerRef.current!.signal,
         });
@@ -447,7 +467,7 @@ export function TransformResult({
       const response = await fetch('/api/extract-points', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, model: selectedModel }),
       });
       const data = await response.json();
       if (data.title && data.points) {
@@ -550,6 +570,7 @@ export function TransformResult({
         body: JSON.stringify({
           content,
           customPrompt: promptToUse,
+          model: selectedModel,
         }),
       });
       const data = await response.json();

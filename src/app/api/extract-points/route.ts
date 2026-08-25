@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 
 const client = new Anthropic();
 
@@ -27,10 +27,17 @@ const EXTRACT_POINTS_PROMPT = `你是一个帮助用户将对话内容提炼成�
 
 export async function POST(request: Request) {
   try {
-    const { content } = await request.json();
+    const { content, model: requestedModel } = await request.json();
+    const model = resolveAnthropicModel(requestedModel);
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const response = await client.messages.create({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: 512,
       system: EXTRACT_POINTS_PROMPT,
       messages: [
