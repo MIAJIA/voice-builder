@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import {
+  DEFAULT_ANTHROPIC_MODEL,
+  type AnthropicModel,
+} from '@/lib/anthropic-model';
 
 export type Platform = 'twitter' | 'xiaohongshu' | 'wechat' | 'linkedin' | 'video';
 
@@ -74,11 +78,13 @@ interface Store {
   conversations: Conversation[];
   currentConversationId: string | null;
   hasCompletedOnboarding: boolean;
+  selectedModel: AnthropicModel;
   rateLimit: RateLimitState;
 
   // Actions
   setProfile: (profile: Profile) => void;
   setOnboardingCompleted: (completed: boolean) => void;
+  setSelectedModel: (model: AnthropicModel) => void;
   addCapture: (capture: Capture) => void;
   deleteCapture: (id: string) => void;
   addConversation: (conversation: Conversation) => void;
@@ -103,6 +109,7 @@ export const useStore = create<Store>()(
       conversations: [],
       currentConversationId: null,
       hasCompletedOnboarding: false,
+      selectedModel: DEFAULT_ANTHROPIC_MODEL,
       rateLimit: {
         date: new Date().toISOString().split('T')[0],
         chatCount: 0,
@@ -113,6 +120,7 @@ export const useStore = create<Store>()(
       // Actions
       setProfile: (profile) => set({ profile }),
       setOnboardingCompleted: (completed) => set({ hasCompletedOnboarding: completed }),
+      setSelectedModel: (selectedModel) => set({ selectedModel }),
 
       addCapture: (capture) =>
         set((state) => ({

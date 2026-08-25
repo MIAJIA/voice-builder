@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Platform, PlatformPersona } from '@/lib/store';
+import { Platform, PlatformPersona, useStore } from '@/lib/store';
 import { PERSONA_QUESTIONS, PLATFORM_NAMES } from '@/lib/prompts';
 
 interface PersonaSetupDialogProps {
@@ -22,6 +22,7 @@ export function PersonaSetupDialog({
 }: PersonaSetupDialogProps) {
   const questions = PERSONA_QUESTIONS[platform];
   const platformName = PLATFORM_NAMES[platform];
+  const selectedModel = useStore((state) => state.selectedModel);
 
   const [step, setStep] = useState(0); // 0, 1, 2 = questions; 3 = generating; 4 = preview
   const [answers, setAnswers] = useState<string[]>(['', '', '']);
@@ -46,7 +47,7 @@ export function PersonaSetupDialog({
         const response = await fetch('/api/generate-persona', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform, answers }),
+          body: JSON.stringify({ platform, answers, model: selectedModel }),
         });
         const data = await response.json();
         setGeneratedPersona(data);

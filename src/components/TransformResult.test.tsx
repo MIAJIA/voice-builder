@@ -10,6 +10,7 @@ const mockIncrementUsage = vi.fn();
 vi.mock('@/lib/store', () => ({
   useStore: () => ({
     profile: null,
+    selectedModel: 'claude-sonnet-4-6',
     checkRateLimit: mockCheckRateLimit,
     incrementUsage: mockIncrementUsage,
   }),
@@ -113,6 +114,7 @@ describe('TransformResult', () => {
 
       expect(body.platform).toBe('twitter');
       expect(body.language).toBe('en');
+      expect(body.model).toBe('claude-sonnet-4-6');
     });
 
     it('should show EN in collapsed settings summary for Twitter by default', async () => {

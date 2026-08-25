@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { endsWithUserMessage } from '@/lib/anthropic-messages';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 import { buildCoThinkSystemPrompt } from '@/lib/prompts';
 
 const client = new Anthropic();
@@ -69,7 +69,17 @@ function formatMessageContent(
 
 export async function POST(request: Request) {
   try {
-    const { messages, profile } = await request.json();
+    const body = await request.json();
+    const model = resolveAnthropicModel(body.model);
+
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { messages, profile } = body;
 
     if (!Array.isArray(messages) || !endsWithUserMessage(messages)) {
       return new Response(
@@ -93,7 +103,7 @@ export async function POST(request: Request) {
 
     // Create a streaming response
     const stream = await client.messages.stream({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: 1024,
       system: systemPrompt,
       messages: formattedMessages,

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 import type { FavoriteCreator } from '@/lib/store';
 
 const client = new Anthropic();
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     let body: {
       content: string;
       favoriteCreators?: FavoriteCreator[];
+      model?: unknown;
     };
 
     try {
@@ -55,10 +56,17 @@ export async function POST(request: Request) {
     }
 
     const { content } = body;
+    const model = resolveAnthropicModel(body.model);
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     // favoriteCreators reserved for future browser automation integration
 
     const response = await client.messages.create({
-      model: ANTHROPIC_MODEL,
+      model,
       max_tokens: 512,
       system: RECOMMEND_STRUCTURE_PROMPT,
       messages: [{ role: 'user', content }],

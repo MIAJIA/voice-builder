@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 import { Platform, Profile } from '@/lib/store';
 import {
   buildPlatformTransformPrompt,
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       angle?: ContentAngle;
       stream?: boolean;
       researchContext?: string;
+      model?: unknown;
     };
 
     try {
@@ -47,7 +48,16 @@ export async function POST(request: Request) {
       angle = 'sharing',
       stream = false,
       researchContext,
+      model: requestedModel,
     } = body;
+
+    const model = resolveAnthropicModel(requestedModel);
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // Get persona for this platform (if exists)
     const persona = profile?.platformPersonas?.[platform] || null;
@@ -101,7 +111,7 @@ export async function POST(request: Request) {
           try {
             const streamResponse = client.messages.stream(
               {
-                model: ANTHROPIC_MODEL,
+                model,
                 max_tokens: maxTokens,
                 system: systemPrompt,
                 messages: [
@@ -154,7 +164,7 @@ export async function POST(request: Request) {
     // Non-streaming mode (for background prefetch)
     const response = await client.messages.create(
       {
-        model: ANTHROPIC_MODEL,
+        model,
         max_tokens: maxTokens,
         system: systemPrompt,
         messages: [

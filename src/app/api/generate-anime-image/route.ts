@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { ANTHROPIC_MODEL } from '@/lib/anthropic-model';
+import { resolveAnthropicModel } from '@/lib/anthropic-model';
 
 const anthropic = new Anthropic();
 const openai = new OpenAI();
@@ -43,7 +43,14 @@ const ANIME_STYLE_SUFFIX = `. Simple line art illustration, stick figure style, 
 
 export async function POST(request: Request) {
   try {
-    const { content, customPrompt } = await request.json();
+    const { content, customPrompt, model: requestedModel } = await request.json();
+    const model = resolveAnthropicModel(requestedModel);
+    if (!model) {
+      return new Response(JSON.stringify({ error: 'Unsupported model' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     if (!process.env.OPENAI_API_KEY) {
       return new Response(
@@ -64,7 +71,7 @@ export async function POST(request: Request) {
       // Step 1: Extract highlight using Claude
       console.log('[Anime Image] Extracting highlight...');
       const highlightResponse = await anthropic.messages.create({
-        model: ANTHROPIC_MODEL,
+        model,
         max_tokens: 256,
         system: EXTRACT_HIGHLIGHT_PROMPT,
         messages: [{ role: 'user', content }],

@@ -7,6 +7,7 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { TransformResult } from '@/components/TransformResult';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
+import { ModelSwitcher } from '@/components/ModelSwitcher';
 import { useStore } from '@/lib/store';
 
 export default function Home() {
@@ -48,7 +49,7 @@ export default function Home() {
         <ConversationSidebar />
 
         {/* Chat area */}
-        <main className="flex-1 p-4 overflow-hidden">
+        <main className="flex-1 p-4 pb-20 overflow-hidden">
           <div className="max-w-3xl mx-auto h-full">
             <ChatInterface onTransform={handleTransform} />
           </div>
@@ -66,8 +67,10 @@ export default function Home() {
         />
       )}
 
-      {/* Feedback widget */}
-      <FeedbackWidget page="home" />
+      <ModelSwitcher />
+
+      {/* Keep feedback accessible without overlapping the model switcher. */}
+      <FeedbackWidget position="bottom-left" page="home" />
     </div>
   );
 }
